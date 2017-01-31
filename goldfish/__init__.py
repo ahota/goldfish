@@ -1,0 +1,1 @@
+GOLDFISH_RNG_SEED = 'suman'
