@@ -1,8 +1,6 @@
 # Goldfish
 
-Python module for embedding a secret message or key into an image
+Python package for image-based steganography using various methods
+for use with the RaaS project
 
-* Uses integer wavelet transform, or lifting, to transform an image
-* Uses least significant bit modification to embed a message in a transformed
-image
-* Embeds the message across all three RGB color channels
+Currently only has an LSB-based embedder and extractor
