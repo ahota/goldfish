@@ -14,6 +14,9 @@ class LSBExtractor(object):
         self.rng.seed(GOLDFISH_RNG_SEED)
 
     def extract(self, image, message_length=256):
+        if type(image) is str:
+            image = Image.open(image)
+
         width, height = image.size
         if len(image.getbands()) > 3:
             bands = self._get_bands(image)[:3]

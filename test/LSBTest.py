@@ -15,12 +15,11 @@ infile = sys.argv[1]
 outfile = ''.join(infile.split('.')[:-1])+'-altered.png'
 
 message = uuid.uuid4().hex
-im = Image.open(infile)
 em = LSBEmbedder()
 
 print 'Embedding message \"'+message+'\" into image'
 
-im_out = em.embed(im, message)
+im_out = em.embed(infile, message)
 
 print 'Saving to', outfile
 
@@ -28,10 +27,9 @@ im_out.save(outfile)
 
 print 'Loading from', outfile, 'to retrieve message'
 
-im = Image.open(outfile)
 ex = LSBExtractor()
 
-retrieved = ex.extract(im)
+retrieved = ex.extract(outfile)
 
 if message != retrieved:
     print 'Failure!'

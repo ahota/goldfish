@@ -16,6 +16,9 @@ class LSBEmbedder(object):
         self.rng.seed(GOLDFISH_RNG_SEED)
 
     def embed(self, image, message):
+        if type(image) is str:
+            image = Image.open(image)
+
         width, height = image.size
         if len(image.getbands()) > 3:
             bands = self._get_bands(image)[:3]
