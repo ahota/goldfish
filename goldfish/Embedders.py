@@ -16,7 +16,7 @@ class LSBEmbedder(object):
         self.rng.seed(GOLDFISH_RNG_SEED)
 
     def embed(self, image, message):
-        if type(image) is str:
+        if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
         width, height = image.size
