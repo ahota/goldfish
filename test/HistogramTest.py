@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../')
-from goldfish.Embedders import LSBEmbedder
-from goldfish.Extractors import LSBExtractor
+from goldfish.Embedders import HistogramEmbedder
+from goldfish.Extractors import HistogramExtractor
 import uuid
 
 from PIL import Image, ImageMath
@@ -15,7 +15,7 @@ infile = sys.argv[1]
 outfile = ''.join(infile.split('.')[:-1])+'-altered.png'
 
 message = uuid.uuid4().hex
-em = LSBEmbedder()
+em = HistogramEmbedder()
 
 print 'Embedding message \"'+message+'\" into image'
 
@@ -27,7 +27,7 @@ im_out.save(outfile)
 
 print 'Loading from', outfile, 'to retrieve message'
 
-ex = LSBExtractor()
+ex = HistogramExtractor()
 
 retrieved = ex.extract(outfile)
 
