@@ -42,7 +42,7 @@ print 'Getting the diff'
 im_in = Image.open(infile)
 in_bands = im_in.split()
 out_bands = im_out.split()
-diffs = [ImageMath.eval("convert(a - b, 'L')", a=in_bands[i], b=out_bands[i])
+diffs = [ImageMath.eval("convert(b-a, 'L')", a=in_bands[i], b=out_bands[i])
         for i in range(len(in_bands))]
 diff = Image.merge('RGB', diffs)
 diff.save('diff.png')

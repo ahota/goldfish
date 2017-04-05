@@ -4,6 +4,7 @@ import sys
 from PIL import Image
 
 from goldfish import GOLDFISH_RNG_SEED
+from matplotlib import pyplot
 
 '''
 Extractor class that uses extracts a message from the LSB of image pixels
@@ -59,12 +60,17 @@ class HistogramExtractor(object):
             bands = self._get_bands(image)
 
         hists = [Image.fromarray(b).histogram() for b in bands]
+        pyplot.plot(hists[0], 'r')
+        pyplot.plot(hists[1], 'g')
+        pyplot.plot(hists[2], 'b')
+        pyplot.show()
         peaks = [self._get_max_point(hist) for hist in hists]
         zeros = [self._get_min_point(hist) for hist in hists]
         print peaks
         print zeros
-        channels = [self.rng.choice(range(len(bands)))
-                for i in range(message_length)]
+        #channels = [self.rng.choice(range(len(bands)))
+        #        for i in range(message_length)]
+        channels = [1] * message_length
         bin_message = ''
 
         current_index = 0
@@ -84,6 +90,7 @@ class HistogramExtractor(object):
                     current_index += 1
                 if current_index >= message_length:
                     done_extracting = True
+        print bin_message[:32]
         return ''.join([chr(int(bin_message[i:i+8], 2))
             for i in range(0, len(bin_message), 8)])
 
@@ -102,6 +109,8 @@ class HistogramExtractor(object):
             if hist[i] > max_val:
                 max_val = hist[i]
                 max_point = i
+        if max_point == 0:
+            max_point = 2
         return max_point
 
     def _get_min_point(self, hist):

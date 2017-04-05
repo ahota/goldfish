@@ -4,6 +4,7 @@ import sys
 from PIL import Image
 
 from goldfish import GOLDFISH_RNG_SEED
+from matplotlib import pyplot
 
 '''
 Embedder class that uses LSB to hide a message in an image
@@ -62,19 +63,25 @@ class HistogramEmbedder(object):
 
         # get the histogram and alter the image channels
         hists = [Image.fromarray(b).histogram() for b in bands]
+        pyplot.plot(hists[0], 'r')
+        pyplot.plot(hists[1], 'g')
+        pyplot.plot(hists[2], 'b')
+        pyplot.show()
         peaks = [self._get_max_point(hist) for hist in hists]
         zeros = [self._get_min_point(hist) for hist in hists]
         print peaks
         print zeros
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        channels = [self.rng.choice(range(len(bands)))
-                for i in range(len(bin_message))]
+        print bin_message[:32]
+        #channels = [self.rng.choice(range(len(bands)))
+        #        for i in range(len(bin_message))]
+        channels = [1] * len(bin_message)
         # we can shift values to the right and embed the data at the same time
         current_index = 0
         done_embedding = False
         # for each band, shift right and embed data if we are not done and if
         # this is the right band for the current bit
-        for b_i in range(len(bands)):
+        for b_i in range(1, 2):
             for i in range(width):
                 for j in range(height):
                     if peaks[b_i] <= bands[b_i][i,j] <= zeros[b_i]:
@@ -83,7 +90,7 @@ class HistogramEmbedder(object):
                         if current_index >= len(bin_message):
                             done = True
                         elif b_i == channels[current_index]:
-                            bands[b_i] += int(bin_message[current_index])
+                            bands[b_i][i,j] += int(bin_message[current_index])
                             current_index += 1
 
         return Image.merge('RGB', [Image.fromarray(band) for band in bands])
@@ -104,6 +111,8 @@ class HistogramEmbedder(object):
             if hist[i] > max_val:
                 max_val = hist[i]
                 max_point = i
+        if max_point == 0:
+            max_point = 1
         return max_point
 
     def _get_min_point(self, hist):
@@ -116,4 +125,40 @@ class HistogramEmbedder(object):
         if min_point == -1:
             min_point = 254
         return min_point
+
+class EntropyEmbedder(object):
+    def __init__(self):
+        self.rng = random.Random()
+        self.rng.seed(GOLDFISH_RNG_SEED)
+
+    def embed(self, image, message):
+        if type(image) is str or type(image) is unicode:
+            image = Image.open(image)
+
+        width, height = image.size
+        if len(image.getbands()) > 3:
+            bands = self._get_bands(image)[:3]
+        else:
+            bands = self._get_bands(image)
+
+        bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
+        
+        # just deal with the red band for now
+        # split into quarter tiles
+        tiles = [
+            bands[0][:width/2,:height/2], # top left
+            bands[0][width/2:,:height/2], # top right
+            bands[0][:width/2,height/2:], # bottom left
+            bands[0][:width/2,:height/2]  # bottom right
+        ]
+
+        # embed the message in each tile
+
+    def _get_bands(self, image):
+        bands = image.split()
+        output = []
+        for band in bands:
+            output.append(numpy.fromiter(iter(band.getdata()), numpy.uint8))
+            output[-1].resize(image.width, image.height)
+        return output
 
