@@ -147,7 +147,7 @@ class EntropyEmbedder(object):
         )
         self.zigzagflatinverse = self.zigzag.flatten()
         self.zigzagflat = numpy.argsort(self.zigzagflatinverse)
-        self.energy_threshold = 2000
+        self.energy_threshold = 500
         self.base_quantize_matrix = numpy.array(
                 [[16,  11,  10,  16,  24,  40,  51,  61],
                  [12,  12,  14,  19,  26,  58,  60,  55],
@@ -161,7 +161,7 @@ class EntropyEmbedder(object):
         self.k = 33
         self.m = 5
 
-    def embed(self, image, message):
+    def embed(self, image, message, quality=75):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
@@ -172,10 +172,9 @@ class EntropyEmbedder(object):
             bands = self._get_bands(image)
 
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        print bin_message[:64]
-        #quantize_matrix = self._setup_quantize_matrix(quality)
+        quantize_matrix = self._setup_quantize_matrix(quality)
         
-        # just deal with the red band for now
+        # just deal with the blue band for now
         # split into quarter tiles
         # terrible variable names ahead, deal with it
         tw = width/2  # tile width
@@ -183,7 +182,7 @@ class EntropyEmbedder(object):
         psw = 8       # process-significant block width
         psh = 8       # process-significant block height
         tiles = numpy.array(
-            [bands[0][i*tw:(i+1)*tw, j*th:(j+1)*th]
+            [bands[2][i*tw:(i+1)*tw, j*th:(j+1)*th]
             for (i, j) in numpy.ndindex(2, 2)]
         ).reshape(2, 2, tw, th)
 
@@ -203,9 +202,27 @@ class EntropyEmbedder(object):
                     break
                 # 2d dct
                 block = dct(dct(ps_blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+                # check block energy
+                orig_energy = numpy.sum(block*block) - block[0,0]*block[0,0]
+                if orig_energy < self.energy_threshold:
+                    #ps_blocks[bi, bj][:] = 255
+                    continue # skip this block
+                # divide by the jpeg quantization matrix
+                # image should resist up to <quality> jpeg compression
+                block /= quantize_matrix
                 block = block.flatten()[self.zigzagflat] # get in zig zag order
                 # embed bits_per_block bits of the message into this ps block
                 for bit_i in range(1, 1+bits_per_block):
+                    if bin_message[current_index+bit_i-1] == '1':
+                        # round coefficient to the nearest odd number
+                        block[bit_i] = 2 * numpy.round((block[bit_i]+1)/2) - 1
+                    else:
+                        # round coefficient to the nearest even number
+                        block[bit_i] = 2 * numpy.round(block[bit_i]/2)
+                    #if ti == 1 and tj == 0 and shit < 10:
+                    #    print block[bit_i]
+                    '''
+                    # this part comes from the Bo Li paper
                     third_bit = format(int(block[bit_i]), 'b').zfill(3)[-3]
                     original_val = block[bit_i]
                     if bin_message[current_index] == '1' and third_bit == '1':
@@ -238,18 +255,33 @@ class EntropyEmbedder(object):
                         d_np = int(d_np, 2)
                     block[self.k + bit_i] = d_np - d_prime + d
                     current_index += 1
+                    '''
                 # un-zigzag the block
                 block = block[self.zigzagflatinverse].reshape(8, 8)
+                # check the new energy
+                new_energy = numpy.sum(block*block) - block[0,0]*block[0,0]
+                if new_energy < self.energy_threshold:
+                    #ps_blocks[bi, bj][:] = 128
+                    continue # skip this block
+                else:
+                    current_index += 4
+                # multiply by quantization matrix
+                block *= quantize_matrix
                 # inverse dct
                 block = idct(idct(block, norm='ortho').T, norm='ortho').T
                 # reassign back to tile
                 ps_blocks[bi, bj] = block
+                '''
+            if current_index < len(bin_message) - 1:
+                print 'Tile', ti, tj, 'could only hold', current_index,
+                print 'out of', len(bin_message), 'bits'
+                '''
             # reassemble the tile
             tiles[ti, tj] = numpy.hstack([numpy.vstack(ps_blocks[:,i])
                 for i in range(tw/psw)])
 
         # reassemble the tiles into a channel
-        bands[0] = numpy.hstack([numpy.vstack(tiles[:, i]) for i in range(2)])
+        bands[2] = numpy.hstack([numpy.vstack(tiles[:, i]) for i in range(2)])
 
         return Image.merge('RGB', [Image.fromarray(b) for b in bands])
 
@@ -261,7 +293,7 @@ class EntropyEmbedder(object):
             output[-1].resize(image.width, image.height)
         return output
 
-    def _setup_quantize_matrix(quality):
+    def _setup_quantize_matrix(self, quality):
         if quality < 50:
             s = 5000/quality
         else:
