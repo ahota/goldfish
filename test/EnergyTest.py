@@ -1,46 +1,41 @@
 import sys
 sys.path.append('../')
-from goldfish.Embedders import EntropyEmbedder
-from goldfish.Extractors import EntropyExtractor
+from goldfish.Embedders import EnergyEmbedder
+from goldfish.Extractors import EnergyExtractor
 import uuid
+import time
 
 from PIL import Image, ImageMath
-from skimage import data
 
 if len(sys.argv) < 2:
     print 'Usage:'
     print '\t', sys.argv[0], 'image_filepath'
     sys.exit(1)
 
+infile = sys.argv[1]
+outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
+#outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
 n_rounds = 1
 successes = 0
 
-print_len = len(str(n_rounds))
-
 for i in range(n_rounds):
-    sys.stdout.write('\r{num:{width}}/{total}'.format(num=i, width=print_len,
-            total=n_rounds))
-    sys.stdout.flush()
-    infile = sys.argv[1]
-    outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
+    if n_rounds != 1:
+        sys.stdout.write('\r{}'.format(i))
+        sys.stdout.flush()
+    message = 'please sign my forms' #uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
 
-    message = uuid.uuid4().hex
-    em = EntropyEmbedder()
-
-    #print 'Embedding message \"'+message+'\" into image'
-
+    em = EnergyEmbedder(1000)
     im_out = em.embed(infile, message)
-
-    #print 'Saving to', outfile
-
     if n_rounds == 1:
+        im_out.show()
+
+    if outfile.endswith('jpg'):
+        im_out.save(outfile, quality=95)
+    elif outfile.endswith('png'):
         im_out.save(outfile)
 
-    #print 'Loading from', outfile, 'to retrieve message'
-
-    ex = EntropyExtractor()
-
-    retrieved = ex.extract(im_out)
+    ex = EnergyExtractor(1000)
+    retrieved = ex.extract(outfile)
 
     if message != retrieved:
         if n_rounds == 1:
@@ -52,8 +47,9 @@ for i in range(n_rounds):
             print 'Success!'
         successes += 1
 
-sys.stdout.write('\r{}/{}\n'.format(n_rounds, n_rounds))
-print successes, 'extractions out of', n_rounds
+if n_rounds != 1:
+    sys.stdout.write('\r{}\n'.format(i))
+print successes, 'out of', n_rounds
 
 '''
 print 'Getting the diff'
