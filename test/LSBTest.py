@@ -1,7 +1,10 @@
-import sys
-sys.path.append('../')
+'''
 from goldfish.Embedders import LSBEmbedder
 from goldfish.Extractors import LSBExtractor
+'''
+import sys
+sys.path.append('../')
+from goldfish.watermarker import Watermarker
 import uuid
 
 from PIL import Image, ImageMath
@@ -12,24 +15,18 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 infile = sys.argv[1]
-outfile = ''.join(infile.split('.')[:-1])+'-altered.png'
+outfile = infile[:-4]+'-altered.jpg'
 
 message = uuid.uuid4().hex
-em = LSBEmbedder()
+wm = Watermarker()
 
 print 'Embedding message \"'+message+'\" into image'
 
-im_out = em.embed(infile, message)
+im_out = wm.embed(infile, message)
 
-print 'Saving to', outfile
-
-im_out.save(outfile)
-
-print 'Loading from', outfile, 'to retrieve message'
-
-ex = LSBExtractor()
-
-retrieved = ex.extract(outfile)
+# only reading back from image in memory
+# LSB doesn't survive most image compression
+retrieved = wm.extract(im_out)
 
 if message != retrieved:
     print 'Failure!'
