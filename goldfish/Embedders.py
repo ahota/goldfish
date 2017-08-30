@@ -380,12 +380,10 @@ class EnergyEmbedder(object):
                     break
                     # these blocks were scanned after the message has been
                     # embedded, brighten the red channel
-                    '''
                     rgb[0][bi*bw:(bi+1)*bw, bj*bh:(bj+1)*bh] = \
                         numpy.minimum(
                         rgb[0][bi*bw:(bi+1)*bw,bj*bh:(bj+1)*bh].astype(int)+64,
                         numpy.ones((bw, bh))*255)
-                    '''
 
         # join the blocks
         luma = numpy.hstack([numpy.vstack(blocks[:, j])

@@ -13,8 +13,8 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 infile = sys.argv[1]
-outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
-#outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
+#outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
+outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
 n_rounds = 1
 successes = 0
 
@@ -22,7 +22,7 @@ for i in range(n_rounds):
     if n_rounds != 1:
         sys.stdout.write('\r{}'.format(i))
         sys.stdout.flush()
-    message = 'please sign my forms' #uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
+    message = uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
 
     em = EnergyEmbedder(1000)
     im_out = em.embed(infile, message)
