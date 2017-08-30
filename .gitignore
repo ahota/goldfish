@@ -1,2 +1,5 @@
 #compiled python files
 *.pyc
+.*.swp
+*.png
+*.jpg
