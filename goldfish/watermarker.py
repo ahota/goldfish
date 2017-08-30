@@ -2,6 +2,12 @@ import numpy
 import random
 from PIL import Image
 
+def seeded(func):
+    def func_wrapper(self, *args, **kwargs):
+        self.rng.seed('suman')
+        return func(self, *args, **kwargs)
+    return func_wrapper
+
 class Watermarker(object):
     '''
     Base watermarking algorithm class. Implements LSB embedding and
@@ -10,10 +16,9 @@ class Watermarker(object):
     '''
     def __init__(self):
         self.rng = random.Random()
-        self.rng_seed = 'suman'
 
+    @seeded
     def embed(self, image, message):
-        self.rng.seed(self.rng_seed)
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
@@ -35,8 +40,8 @@ class Watermarker(object):
 
         return Image.merge('RGB', [Image.fromarray(band) for band in bands])
 
+    @seeded
     def extract(self, image, message_length=256):
-        self.rng.seed(self.rng_seed)
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
