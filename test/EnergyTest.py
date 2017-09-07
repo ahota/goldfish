@@ -1,7 +1,6 @@
 import sys
 sys.path.append('../')
-from goldfish.Embedders import EnergyEmbedder
-from goldfish.Extractors import EnergyExtractor
+from goldfish.energy import EnergyWatermarker
 import uuid
 import time
 
@@ -15,7 +14,7 @@ if len(sys.argv) < 2:
 infile = sys.argv[1]
 #outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
 outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
-n_rounds = 1
+n_rounds = 10
 successes = 0
 
 for i in range(n_rounds):
@@ -24,8 +23,8 @@ for i in range(n_rounds):
         sys.stdout.flush()
     message = uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
 
-    em = EnergyEmbedder(1000)
-    im_out = em.embed(infile, message)
+    wm = EnergyWatermarker()
+    im_out = wm.embed(infile, message)
     if n_rounds == 1:
         im_out.show()
 
@@ -34,8 +33,7 @@ for i in range(n_rounds):
     elif outfile.endswith('png'):
         im_out.save(outfile)
 
-    ex = EnergyExtractor(1000)
-    retrieved = ex.extract(outfile)
+    retrieved = wm.extract(outfile)
 
     if message != retrieved:
         if n_rounds == 1:

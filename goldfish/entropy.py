@@ -1,6 +1,5 @@
 from watermarker import *
 from scipy.fftpack import dct, idct
-from unireedsolomon import rs
 
 # TODO:
 # These functions originally were an implementation of Bo Li's method
