@@ -1,7 +1,6 @@
 import sys
 sys.path.append('../')
-from goldfish.Embedders import HistogramEmbedder
-from goldfish.Extractors import HistogramExtractor
+from goldfish.histogram import HistogramWatermarker
 import uuid
 
 from PIL import Image, ImageMath
@@ -12,14 +11,14 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 infile = sys.argv[1]
-outfile = ''.join(infile.split('.')[:-1])+'-altered.png'
+outfile = infile[:-4]+'-altered.png'
 
 message = uuid.uuid4().hex
-em = HistogramEmbedder()
+wm = HistogramWatermarker()
 
 print 'Embedding message \"'+message+'\" into image'
 
-im_out = em.embed(infile, message)
+im_out = wm.embed(infile, message)
 
 print 'Saving to', outfile
 
@@ -27,9 +26,7 @@ im_out.save(outfile)
 
 print 'Loading from', outfile, 'to retrieve message'
 
-ex = HistogramExtractor()
-
-retrieved = ex.extract(outfile)
+retrieved = wm.extract(im_out) #outfile)
 
 if message != retrieved:
     print 'Failure!'
@@ -37,6 +34,8 @@ if message != retrieved:
     print retrieved
 else:
     print 'Success!'
+
+wm.show_plot()
 
 print 'Getting the diff'
 im_in = Image.open(infile)
