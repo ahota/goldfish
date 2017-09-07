@@ -1,7 +1,6 @@
 import sys
 sys.path.append('../')
-from goldfish.Embedders import EntropyEmbedder
-from goldfish.Extractors import EntropyExtractor
+from goldfish.entropy import EntropyWatermarker
 import uuid
 
 from PIL import Image, ImageMath
@@ -12,7 +11,7 @@ if len(sys.argv) < 2:
     print '\t', sys.argv[0], 'image_filepath'
     sys.exit(1)
 
-n_rounds = 1
+n_rounds = 100
 successes = 0
 
 print_len = len(str(n_rounds))
@@ -25,11 +24,11 @@ for i in range(n_rounds):
     outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
 
     message = uuid.uuid4().hex
-    em = EntropyEmbedder()
+    wm = EntropyWatermarker()
 
     #print 'Embedding message \"'+message+'\" into image'
 
-    im_out = em.embed(infile, message)
+    im_out = wm.embed(infile, message)
 
     #print 'Saving to', outfile
 
@@ -38,9 +37,7 @@ for i in range(n_rounds):
 
     #print 'Loading from', outfile, 'to retrieve message'
 
-    ex = EntropyExtractor()
-
-    retrieved = ex.extract(im_out)
+    retrieved = wm.extract(im_out)
 
     if message != retrieved:
         if n_rounds == 1:
