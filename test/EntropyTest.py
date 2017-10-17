@@ -8,10 +8,11 @@ from skimage import data
 
 if len(sys.argv) < 2:
     print 'Usage:'
-    print '\t', sys.argv[0], 'image_filepath'
+    print '\t', sys.argv[0], 'image_filepath', '[n_rounds]'
     sys.exit(1)
 
-n_rounds = 100
+n_rounds = int(sys.argv[2]) if len(sys.argv) >= 3 else 1
+#n_rounds = 1
 successes = 0
 
 print_len = len(str(n_rounds))
@@ -21,26 +22,29 @@ for i in range(n_rounds):
             total=n_rounds))
     sys.stdout.flush()
     infile = sys.argv[1]
-    outfile = '.'.join(infile.split('.')[:-1])+'-altered.png'
+    outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
 
     message = uuid.uuid4().hex
     wm = EntropyWatermarker()
 
     #print 'Embedding message \"'+message+'\" into image'
 
-    im_out = wm.embed(infile, message)
+    im_out = wm.embed(infile, message, quality=75, chan='red')
 
     #print 'Saving to', outfile
 
-    if n_rounds == 1:
-        im_out.save(outfile)
+    #if n_rounds == 1:
+    im_out.save(outfile, quality=75)
+    #im_out.show()
+    #sys.exit()
 
     #print 'Loading from', outfile, 'to retrieve message'
 
-    retrieved = wm.extract(im_out)
+    retrieved = wm.extract(outfile, quality=75, chan='red')
 
     if message != retrieved:
         if n_rounds == 1:
+            print
             print 'Failure!'
             print message
             print retrieved
