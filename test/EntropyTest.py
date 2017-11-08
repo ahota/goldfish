@@ -6,41 +6,63 @@ import uuid
 from PIL import Image, ImageMath
 from skimage import data
 
-if len(sys.argv) < 2:
-    print 'Usage:'
-    print '\t', sys.argv[0], 'image_filepath', '[n_rounds]'
-    sys.exit(1)
+from argparse import ArgumentParser
 
-n_rounds = int(sys.argv[2]) if len(sys.argv) >= 3 else 1
-#n_rounds = 1
+imagetypes = ('jpg', 'png')
+
+parser = ArgumentParser()
+parser.add_argument('image', help='Path to the image to test with')
+parser.add_argument('-n', '--n-rounds', type=int,
+        help='Number of rounds to perform')
+parser.add_argument('-t', '--type', choices=imagetypes, default='jpg',
+        help='Filetype to save during test')
+parser.add_argument('-q', '--quality', type=int, default=75,
+        help='Compression quality watermark should resist')
+parser.add_argument('-e', '--entropy-threshold', type=int, default=4000,
+        help='Block entropy threshold')
+parser.add_argument('-b', '--bits-per-block', type=int, default=16,
+        help='Bits per block to embed')
+parser.add_argument('-c', '--channel', default='luma',
+        help='Channel to embed in (luma is best)')
+parser.add_argument('--debug', action='store_true',
+        help='Enable debug messages')
+args = parser.parse_args()
+
+n_rounds = args.n_rounds
 successes = 0
 
 print_len = len(str(n_rounds))
 
 for i in range(n_rounds):
-    sys.stdout.write('\r{num:{width}}/{total}'.format(num=i, width=print_len,
-            total=n_rounds))
+    print '{num:{w}}/{t}'.format(num=i+1, w=print_len, t=n_rounds)
     sys.stdout.flush()
     infile = sys.argv[1]
-    outfile = '.'.join(infile.split('.')[:-1])+'-altered.jpg'
+    outfile = '.'.join(infile.split('.')[:-1])+'-altered.' + args.type
 
     message = uuid.uuid4().hex
-    wm = EntropyWatermarker()
+    print len(message)
+    print message
+    sys.exit()
+    wm = EntropyWatermarker(quality=args.quality,
+            bits=args.bits_per_block,
+            threshold=args.entropy_threshold,
+            chan=args.channel,
+            debug=args.debug)
 
     #print 'Embedding message \"'+message+'\" into image'
 
-    im_out = wm.embed(infile, message, quality=75, chan='red')
+    im_out = wm.embed(infile, message)
 
     #print 'Saving to', outfile
 
     #if n_rounds == 1:
-    im_out.save(outfile, quality=75)
+    im_out.save(outfile, quality=args.quality)
     #im_out.show()
     #sys.exit()
 
     #print 'Loading from', outfile, 'to retrieve message'
 
-    retrieved = wm.extract(outfile, quality=75, chan='red')
+    retrieved = wm.extract(outfile)
 
     if message != retrieved:
         if n_rounds == 1:
@@ -53,8 +75,7 @@ for i in range(n_rounds):
             print 'Success!'
         successes += 1
 
-sys.stdout.write('\r{}/{}\n'.format(n_rounds, n_rounds))
-print successes, 'extractions out of', n_rounds
+print successes, 'successful extractions out of', n_rounds
 
 '''
 print 'Getting the diff'

@@ -1,18 +1,13 @@
 from watermarker import *
 from scipy.fftpack import dct, idct
 
-# TODO:
-# These functions originally were an implementation of Bo Li's method
-# and still contain remnants of that code.
-# embed() and extract() need to be cleaned up to remove these, since
-# that method is going to be used in another module
 class EntropyWatermarker(Watermarker):
     '''
     Embedder/extractor using the entropy thresholding scheme from
     K. Solanki. Multimedia Data Hiding, 2006.
     Section 3.3.1
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, quality=75, bits=16, threshold=4000, chan='red', **kwargs):
         Watermarker.__init__(self, **kwargs)
         # used to get a list of DCT coefficients
         # from:
@@ -30,7 +25,6 @@ class EntropyWatermarker(Watermarker):
         )
         self.zigzagflatinverse = self.zigzag.flatten()
         self.zigzagflat = numpy.argsort(self.zigzagflatinverse)
-        self.entropy_threshold = 4000
         self.base_quantize_matrix = numpy.array(
                 [[16,  11,  10,  16,  24,  40,  51,  61],
                  [12,  12,  14,  19,  26,  58,  60,  55],
@@ -41,9 +35,13 @@ class EntropyWatermarker(Watermarker):
                  [49,  64,  78,  87, 103, 121, 120, 101],
                  [72,  92,  95,  98, 112, 100, 103,  99]]
         )
+        self.quality = quality
+        self.bits_per_block = bits
+        self.entropy_threshold = threshold
+        self.chan = chan
 
     @seeded
-    def embed(self, image, message, quality=75, chan='red'):
+    def embed(self, image, message):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
@@ -54,25 +52,19 @@ class EntropyWatermarker(Watermarker):
         else:
             bands = self._get_bands(image)
 
-        if chan == 'red':
-            embed_band = 0
-        if chan == 'green':
-            embed_band = 1
-        if chan == 'blue':
-            embed_band = 2
+        embed_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        quantize_matrix = self._setup_quantize_matrix(quality)
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
         
         bw = 8 # block width
         bh = 8 # block height
 
-        # embed in the blue band
         band = bands[embed_band]
 
         entropies = []
-        bits_per_block = 16
         current_index = 0
+        n_blocks_embedded = 0
         # divide the tile into 8x8 ps blocks
         blocks = numpy.array(
             [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
@@ -96,7 +88,7 @@ class EntropyWatermarker(Watermarker):
             block /= quantize_matrix
             block = block.flatten()[self.zigzagflat] # get in zig zag order
             # embed bits_per_block bits of the message into this ps block
-            for bit_i in range(1, 1+bits_per_block):
+            for bit_i in range(1, 1+self.bits_per_block):
                 if bin_message[current_index+bit_i-1] == '1':
                     # round coefficient to the nearest odd number
                     block[bit_i] = 2 * numpy.round((block[bit_i]+1)/2) - 1
@@ -113,7 +105,8 @@ class EntropyWatermarker(Watermarker):
                 #blocks[bi, bj][:] = 64
                 continue # leave this block as is and continue
             else:
-                current_index += bits_per_block
+                current_index += self.bits_per_block
+                n_blocks_embedded += 1
             # multiply by quantization matrix
             block *= quantize_matrix
             # inverse dct
@@ -127,8 +120,10 @@ class EntropyWatermarker(Watermarker):
         band = numpy.hstack([numpy.vstack(blocks[:,i])
             for i in range(width/bw)])
 
-        print min(entropies), max(entropies), sum(entropies)/len(entropies)
-        print sorted(entropies, reverse=True)[:5]
+        self._debug_message(min(entropies), max(entropies),
+                sum(entropies)/len(entropies))
+        self._debug_message(sorted(entropies, reverse=True)[:5])
+        self._debug_message('blocks used:', n_blocks_embedded)
 
         # reassemble the tiles into a channel
         bands[embed_band] = band
@@ -139,7 +134,7 @@ class EntropyWatermarker(Watermarker):
         #return Image.fromarray(band)
 
     @seeded
-    def extract(self, image, message_length=256, quality=75, chan='red'):
+    def extract(self, image, message_length=256):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
@@ -150,15 +145,10 @@ class EntropyWatermarker(Watermarker):
         else:
             bands = self._get_bands(image)
 
-        if chan == 'red':
-            ex_band = 0
-        if chan == 'green':
-            ex_band = 1
-        if chan == 'blue':
-            ex_band = 2
+        ex_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''
-        quantize_matrix = self._setup_quantize_matrix(quality)
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
         
         bw = 8 # block width
         bh = 8 # block height
@@ -166,7 +156,6 @@ class EntropyWatermarker(Watermarker):
         band = bands[ex_band]
 
         # embed the message in each tile
-        bits_per_block = 16
         current_index = 0
         # divide the tile into 8x8 ps blocks
         blocks = numpy.array(
@@ -185,12 +174,12 @@ class EntropyWatermarker(Watermarker):
             if entropy < self.entropy_threshold:
                 continue
             block = block.flatten()[self.zigzagflat] # get in zig zag order
-            for bit_i in range(1, 1+bits_per_block):
+            for bit_i in range(1, 1+self.bits_per_block):
                 if numpy.round(block[bit_i]) % 2 == 0:
                     bin_message += '0'
                 else:
                     bin_message += '1'
-            current_index += bits_per_block
+            current_index += self.bits_per_block
 
         bin_message = bin_message[:256]
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
