@@ -6,9 +6,12 @@ class HistogramWatermarker(Watermarker):
     Embedder/extractor using the reversible histogram method from
     Z. Ni, Y. Shi, et al. Reversible data hiding, 2006
     '''
-    def __init__(self):
-        Watermarker.__init__(self)
-        self.figure, self.axes = pyplot.subplots(2,sharex=True,tight_layout=True)
+    def __init__(self, **kwargs):
+        Watermarker.__init__(self, **kwargs)
+        if self.debug:
+            self.figure, self.axes = pyplot.subplots(2,sharex=True,tight_layout=True)
+        else:
+            self.figure = None
 
     def show_plot(self):
         if self.figure is None:
@@ -28,17 +31,18 @@ class HistogramWatermarker(Watermarker):
 
         # get the histogram and alter the image channels
         hists = [Image.fromarray(b).histogram() for b in bands]
-        self.axes[0].set_title('before')
-        self.axes[0].bar(range(256), hists[0], color='r', alpha=0.5)
-        self.axes[0].bar(range(256), hists[1], color='g', alpha=0.5)
-        self.axes[0].bar(range(256), hists[2], color='b', alpha=0.5)
-        #pyplot.show()
+        if self.debug:
+            self.axes[0].set_title('before')
+            self.axes[0].bar(range(256), hists[0], color='r', alpha=0.5)
+            self.axes[0].bar(range(256), hists[1], color='g', alpha=0.5)
+            self.axes[0].bar(range(256), hists[2], color='b', alpha=0.5)
+            pyplot.show()
         peaks = [self._get_max_point(hist) for hist in hists]
         zeros = [self._get_min_point(hist) for hist in hists]
-        print peaks
-        print zeros
+        self._debug_message(peaks)
+        self._debug_message(zeros)
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        print bin_message[:32]
+        self._debug_message(bin_message[:32])
         #channels = [self.rng.choice(range(len(bands)))
         #        for i in range(len(bin_message))]
         channels = [1] * len(bin_message)
@@ -73,14 +77,15 @@ class HistogramWatermarker(Watermarker):
             bands = self._get_bands(image)
 
         hists = [Image.fromarray(b).histogram() for b in bands]
-        self.axes[1].set_title('after')
-        self.axes[1].bar(range(256), hists[0], color='r', alpha=0.5)
-        self.axes[1].bar(range(256), hists[1], color='g', alpha=0.5)
-        self.axes[1].bar(range(256), hists[2], color='b', alpha=0.5)
+        if self.debug:
+            self.axes[1].set_title('after')
+            self.axes[1].bar(range(256), hists[0], color='r', alpha=0.5)
+            self.axes[1].bar(range(256), hists[1], color='g', alpha=0.5)
+            self.axes[1].bar(range(256), hists[2], color='b', alpha=0.5)
         peaks = [self._get_max_point(hist) for hist in hists]
         zeros = [self._get_min_point(hist) for hist in hists]
-        print peaks
-        print zeros
+        self._debug_message(peaks)
+        self._debug_message(zeros)
         #channels = [self.rng.choice(range(len(bands)))
         #        for i in range(message_length)]
         channels = [1] * message_length
@@ -106,7 +111,7 @@ class HistogramWatermarker(Watermarker):
                     current_index += 1
                 if current_index >= message_length:
                     done_extracting = True
-        print bin_message[:32]
+        self._debug_message(bin_message[:32])
         return ''.join([chr(int(bin_message[i:i+8], 2))
             for i in range(0, len(bin_message), 8)])
 

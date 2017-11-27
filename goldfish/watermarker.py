@@ -14,8 +14,9 @@ class Watermarker(object):
     extracting and exposes the embed() and extract() API for child
     classes
     '''
-    def __init__(self):
+    def __init__(self, debug=False):
         self.rng = random.Random()
+        self.debug = debug
 
     @seeded
     def embed(self, image, message):
@@ -70,3 +71,11 @@ class Watermarker(object):
             output.append(numpy.fromiter(iter(band.getdata()), numpy.uint8))
             output[-1].resize(image.width, image.height)
         return output
+
+    def _debug_message(self, *args):
+        if not self.debug:
+            return
+        print 'DEBUG:',
+        for arg in args:
+            print arg,
+        print
