@@ -34,6 +34,8 @@ parser.add_argument('--quiet', action='store_true',
         help='Disable all output')
 parser.add_argument('-d', '--data-size', type=int, default=32,
         help='How many bytes of watermark data to embed/extract')
+parser.add_argument('--direct', action='store_true',
+        help='Directly decode the watermarked image to test insertions/deletions')
 args = parser.parse_args()
 
 n_rounds = args.n_rounds
@@ -68,14 +70,9 @@ for i in range(n_rounds):
 
     #print 'Saving to', outfile
 
-    #if n_rounds == 1:
-    im_out.save(outfile, format=args.type, quality=args.quality)
-    #im_out.show()
-    #sys.exit()
-
-    #print 'Loading from', outfile, 'to retrieve message'
-
-    im_out = Image.open(outfile)
+    if not args.direct:
+        im_out.save(outfile, format=args.type, quality=args.quality)
+        im_out = Image.open(outfile)
     retrieved = wm.extract(im_out, message_length=len(message)*8)
 
     if message != retrieved:
