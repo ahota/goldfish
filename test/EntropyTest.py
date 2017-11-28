@@ -65,6 +65,8 @@ for i in range(n_rounds):
     im_out = wm.embed(infile, message)
 
     if args.super_debug:
+        im = Image.open(infile)
+        im.show()
         im_out.show()
         sys.exit()
 
