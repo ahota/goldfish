@@ -29,14 +29,9 @@ for i in range(n_rounds):
     message = uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
 
     wm = EnergyWatermarker(debug=False)
-    start = time.clock()
     im_out = wm.embed(infile, message)
-    end = time.clock()
-    total_time += end - start
-    times.append((end - start)*1000)
-    if n_rounds == 1:
-        #im_out.show()
-        pass
+    im_out.show()
+    #sys.exit()
 
     if outfile.endswith('jpg'):
         im_out.save(outfile, quality=95)
@@ -59,10 +54,6 @@ for i in range(n_rounds):
 if n_rounds != 1:
     sys.stdout.write('\r{}\n'.format(i))
 print successes, 'out of', n_rounds
-
-print 'Average embedding time:', 1000*total_time/n_rounds, 'ms'
-#pyplot.hist(times)
-#pyplot.show()
 
 '''
 print 'Getting the diff'

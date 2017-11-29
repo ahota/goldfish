@@ -1,6 +1,9 @@
 from watermarker import *
 from scipy.fftpack import dct, idct
 from unireedsolomon import rs
+from bitstring import BitArray
+
+import sys
 
 class EnergyWatermarker(Watermarker):
     '''
@@ -39,7 +42,9 @@ class EnergyWatermarker(Watermarker):
         #convert to YCbCr to get luma
         yimage = image.convert('YCbCr')
         bands = self._get_bands(yimage)
+        #bands = self._get_bands(image)
 
+        '''
         # encode with Reed-Solomon
         # message is 32 bytes
         coder = rs.RSCoder(63, 32)
@@ -49,6 +54,8 @@ class EnergyWatermarker(Watermarker):
         self._debug_message(bin_message[:32])
         self._debug_message('Encoded message length =', len(bin_message),
                 'bits')
+        '''
+        bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
 
         luma = bands[0]
         # using nomenclature from paper
@@ -69,6 +76,7 @@ class EnergyWatermarker(Watermarker):
         # embed the message in each slice
         # for each slice
         for (si, sj) in numpy.ndindex(2, 2):
+            # index into the watermark data
             current_index = 0
             # divide current slice into ps blocks
             ps_blocks = numpy.array(
@@ -86,8 +94,11 @@ class EnergyWatermarker(Watermarker):
 
                 # embed <bits_per_block> bits of the message into this block
                 for bit_i in range(1, 1+bits_per_block):
-                    third_bit = format(int(block[bit_i]), 'b').zfill(3)[-3]
+                    #third_bit = format(int(block[bit_i]), 'b').zfill(3)[-3]
                     original_val = block[bit_i]
+                    original_val_bin = BitArray(float=original_val, length=32).bin
+                    third_bit = original_val_bin[-3]
+
                     if   bin_message[current_index] == '1' and third_bit == '1':
                         block[bit_i] = 2 * int(numpy.round((block[bit_i]-1)/2.0)) + 1
                     elif bin_message[current_index] == '1' and third_bit == '0':
@@ -97,6 +108,7 @@ class EnergyWatermarker(Watermarker):
                     else: # bin_message[current_index] == '0' and third_bit == '0'
                         block[bit_i] = 2 * int(numpy.round((block[bit_i]-1)/2.0)) + 1
 
+                    '''
                     # set the noticing parameter
                     d = block[self.k + bit_i]
                     d_prime = int(numpy.round(d))
@@ -123,6 +135,7 @@ class EnergyWatermarker(Watermarker):
 
                     # place the watermarked coefficient back into the block
                     block[self.k + bit_i] = d_np - d_prime + d # ...yeah, sure
+                    '''
                     current_index += 1
                 # un-zigzag the block
                 block = block[self.zigzagflatinverse].reshape(block_w, block_h)
@@ -139,15 +152,16 @@ class EnergyWatermarker(Watermarker):
 
         # merge channels and convert back to RGB
         watermarked = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
+        #watermarked = Image.merge('RGB', [Image.fromarray(b) for b in bands])
         return watermarked.convert('RGB')
 
 
 
     # 504 is the length of a 32-byte/256-bit message when
-    # (63, 32) RS-encoded
+    # (63, 32) RS-encoded (504 bits = 63 bytes)
     # 120 is the length of a 8-byte message when (15, 8) encoded
     @seeded
-    def extract(self, image, message_length=504):
+    def extract(self, image, message_length=256):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
@@ -155,6 +169,7 @@ class EnergyWatermarker(Watermarker):
         #convert to YCbCr to get luma
         yimage = image.convert('YCbCr')
         bands = self._get_bands(yimage)
+        #bands = self._get_bands(image)
 
         bin_message = ''
         # get a decoder ready
@@ -196,7 +211,8 @@ class EnergyWatermarker(Watermarker):
 
                 # extract <bits_per_block> bits of the message from this block
                 for bit_i in range(1, 1+bits_per_block):
-                    val = format(int(block[bit_i]), 'b').zfill(4)
+                    #val = format(int(block[bit_i]), 'b').zfill(4)
+                    val = BitArray(float=block[bit_i], length=32).bin
                     first_bit = val[-1]
                     third_bit = val[-3]
                     if int(first_bit, 2) ^ int(third_bit, 2):
@@ -213,6 +229,7 @@ class EnergyWatermarker(Watermarker):
             else:
                 bin_message += '0'
 
+        '''
         # form the binary message
         encoded = ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
@@ -222,6 +239,9 @@ class EnergyWatermarker(Watermarker):
         except rs.RSCodecError:
             print 'RSCoder failed to read encoded message!'
         return message[:32]
+        '''
+        return ''.join([chr(int(bin_message[i:i+8], 2)) 
+                 for i in range(0, len(bin_message), 8)])
 
     def _get_bands(self, image):
         bands = image.split()
