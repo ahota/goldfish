@@ -11,7 +11,7 @@ class EnergyWatermarker(Watermarker):
     J. Lee and B. Li. Self-Recognized Image Protection Technique that Resists
     Large-Scale Cropping. 2014.
     '''
-    def __init__(self, k=33, m=5, **kwargs):
+    def __init__(self, bits=4, chan='luma', **kwargs):
         Watermarker.__init__(self, **kwargs)
         # used to get a list of DCT coefficients
         # from:
@@ -29,8 +29,8 @@ class EnergyWatermarker(Watermarker):
         )
         self.zigzagflatinverse = self.zigzag.flatten()
         self.zigzagflat = numpy.argsort(self.zigzagflatinverse)
-        self.k = k # what are these two?
-        self.m = m
+        self.debug_vals = [] # used for checking embedded/extracted values
+        self.chan = chan
 
     @seeded
     def embed(self, image, message):
@@ -39,25 +39,13 @@ class EnergyWatermarker(Watermarker):
 
         width, height = image.size
 
-        #convert to YCbCr to get luma
         yimage = image.convert('YCbCr')
         bands = self._get_bands(yimage)
-        #bands = self._get_bands(image)
 
-        '''
-        # encode with Reed-Solomon
-        # message is 32 bytes
-        coder = rs.RSCoder(63, 32)
-        field_vals = coder.encode(message, return_string=False)
-        self._debug_message([int(fv) for fv in field_vals])
-        bin_message = ''.join([bin(fv)[2:].zfill(8) for fv in field_vals])
-        self._debug_message(bin_message[:32])
-        self._debug_message('Encoded message length =', len(bin_message),
-                'bits')
-        '''
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
 
-        luma = bands[0]
+        embed_band = ['luma', 'cb', 'cr'].index(self.chan)
+        band = bands[embed_band]
         # using nomenclature from paper
         # - slices are quadrants of the image plane being watermarked
         # - process-significant (ps) blocks are subdivisions of the slices
@@ -67,12 +55,13 @@ class EnergyWatermarker(Watermarker):
 
         # divide image plane into slices
         slices = numpy.array(
-            [luma[i*slice_w:(i+1)*slice_w, j*slice_h:(j+1)*slice_h]
+            [band[i*slice_w:(i+1)*slice_w, j*slice_h:(j+1)*slice_h]
             for (i, j) in numpy.ndindex(2, 2)]
         ).reshape(2, 2, slice_w, slice_h)
 
         bits_per_block = 4
 
+        did_print = False
         # embed the message in each slice
         # for each slice
         for (si, sj) in numpy.ndindex(2, 2):
@@ -94,49 +83,55 @@ class EnergyWatermarker(Watermarker):
 
                 # embed <bits_per_block> bits of the message into this block
                 for bit_i in range(1, 1+bits_per_block):
-                    #third_bit = format(int(block[bit_i]), 'b').zfill(3)[-3]
+                    # this method is explained in a very complex way, but all
+                    # it is doing is quantization with a delta of 2
+                    # So, if you take the current coefficient B(j) and truncate
+                    # it, the third LSB of it is b'
+                    # if b' XOR the current watermark bit W(i) == 1
+                    # (i.e. they are different)
+                    # quantize to the nearest even number
+                    # otherwise quantize to the nearest odd number
+
                     original_val = block[bit_i]
-                    original_val_bin = BitArray(float=original_val, length=32).bin
-                    third_bit = original_val_bin[-3]
+                    original_val_int = int(block[bit_i])
 
-                    if   bin_message[current_index] == '1' and third_bit == '1':
-                        block[bit_i] = 2 * int(numpy.round((block[bit_i]-1)/2.0)) + 1
-                    elif bin_message[current_index] == '1' and third_bit == '0':
-                        block[bit_i] = 2 * int(numpy.round((block[bit_i])/2.0))
-                    elif bin_message[current_index] == '0' and third_bit == '1':
-                        block[bit_i] = 2 * int(numpy.round((block[bit_i])/2.0))
-                    else: # bin_message[current_index] == '0' and third_bit == '0'
-                        block[bit_i] = 2 * int(numpy.round((block[bit_i]-1)/2.0)) + 1
-
-                    '''
-                    # set the noticing parameter
-                    d = block[self.k + bit_i]
-                    d_prime = int(numpy.round(d))
-                    d_bits = format(d_prime, 'b').zfill(5)
-
-                    # handle the negative sign Python puts in
-                    was_neg = False
-                    if d_bits[0] == '-':
-                        d_bits = d_bits[1:]
-                        was_neg = True
-
-                    if block[bit_i] == original_val:
-                        # embed a 0 into the mth bit of the kth+bit_i coefficient
-                        d_np = d_bits[:-self.m]+'0'+d_bits[-self.m+1:]
+                    # this is needed in case the coefficient is negative since
+                    # we ignore negativity during quantization
+                    was_negative = False
+                    if original_val_int >= 0:
+                        original_val_bin = format(original_val_int,
+                                'b').zfill(32)
                     else:
-                        # embed a 1
-                        d_np = d_bits[:-self.m]+'1'+d_bits[-self.m+1:]
+                        original_val_bin = format(abs(original_val_int),
+                                'b').zfill(32)
+                        was_negative = True
 
-                    # replace the negative if it was there
-                    if was_neg:
-                        d_np = int('-'+d_np, 2)
+                    b_prime = original_val_bin[-3]
+                    w_i = bin_message[current_index]
+
+                    if int(b_prime) ^ int(w_i):
+                        # if XOR == 1
+                        # quantize to the nearest even number
+                        block[bit_i] = 2 * int(numpy.round(abs(original_val)/2.0))
                     else:
-                        d_np = int(d_np, 2)
+                        # quantize to the nearest odd number
+                        block[bit_i] = 2 * int(numpy.round((abs(original_val)-1)/2.0))+1
 
-                    # place the watermarked coefficient back into the block
-                    block[self.k + bit_i] = d_np - d_prime + d # ...yeah, sure
-                    '''
+                    if was_negative:
+                        block[bit_i] *= -1
+
+                    if original_val != 0 and not did_print:
+                        self.debug_vals = [si, sj, bi, bj, bit_i]
+                        self._debug_message(si, sj, bi, bj, bit_i)
+                        self._debug_message(original_val, original_val_int,
+                            original_val_bin)
+                        self._debug_message(b_prime, w_i, block[bit_i])
+                        self._debug_message(w_i, 'embedded')
+                        self._debug_message('-'*10)
+                        did_print = True
+
                     current_index += 1
+
                 # un-zigzag the block
                 block = block[self.zigzagflatinverse].reshape(block_w, block_h)
                 # inverse 2D DCT
@@ -148,12 +143,15 @@ class EnergyWatermarker(Watermarker):
                 for i in range(slice_w/block_w)])
 
         # reassemble the slices into the watermarked image plane
-        bands[0] = numpy.hstack([numpy.vstack(slices[:,i]) for i in range(2)])
+        bands[embed_band] = numpy.hstack([numpy.vstack(slices[:,i])
+            for i in range(2)])
+
+        debug_str = ' '.join(bin_message)
+        self._debug_message(debug_str)
 
         # merge channels and convert back to RGB
         watermarked = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
-        #watermarked = Image.merge('RGB', [Image.fromarray(b) for b in bands])
-        return watermarked.convert('RGB')
+        return watermarked
 
 
 
@@ -166,15 +164,12 @@ class EnergyWatermarker(Watermarker):
             image = Image.open(image)
 
         width, height = image.size
-        #convert to YCbCr to get luma
         yimage = image.convert('YCbCr')
         bands = self._get_bands(yimage)
-        #bands = self._get_bands(image)
 
         bin_message = ''
-        # get a decoder ready
-        decoder = rs.RSCoder(63, 32)
-        luma = bands[0]
+        extract_band = ['luma', 'cb', 'cr'].index(self.chan)
+        band = bands[extract_band]
         # using nomenclature from paper
         # - slices are quadrants of the image plane being watermarked
         # - process-significant (ps) blocks are subdivisions of the slices
@@ -184,13 +179,14 @@ class EnergyWatermarker(Watermarker):
 
         # divide image plane into slices
         slices = numpy.array(
-            [luma[i*slice_w:(i+1)*slice_w, j*slice_h:(j+1)*slice_h]
+            [band[i*slice_w:(i+1)*slice_w, j*slice_h:(j+1)*slice_h]
             for (i, j) in numpy.ndindex(2, 2)]
         ).reshape(2, 2, slice_w, slice_h)
         slice_messages = [[],[],[],[]]
 
         bits_per_block = 4
 
+        did_print = False
         # extract the message in each slice
         # for each slice
         for (si, sj) in numpy.ndindex(2, 2):
@@ -211,43 +207,45 @@ class EnergyWatermarker(Watermarker):
 
                 # extract <bits_per_block> bits of the message from this block
                 for bit_i in range(1, 1+bits_per_block):
-                    #val = format(int(block[bit_i]), 'b').zfill(4)
-                    val = BitArray(float=block[bit_i], length=32).bin
-                    first_bit = val[-1]
-                    third_bit = val[-3]
+                    val = block[bit_i]
+                    val_int = int(val)
+                    was_negative = False
+                    if val_int >= 0:
+                        val_bin = format(val_int, 'b').zfill(32)
+                    else:
+                        val_bin = format(abs(val_int), 'b').zfill(32)
+                        was_negative = True
+                    first_bit = val_bin[-1]
+                    third_bit = val_bin[-3]
                     if int(first_bit, 2) ^ int(third_bit, 2):
                         slice_messages[si*2+sj].append(0)
+                        extracted_bit = 0
                     else:
                         slice_messages[si*2+sj].append(1)
+                        extracted_bit = 1
+
+                    if self.debug and \
+                       self.debug_vals == [si, sj, bi, bj, bit_i] and \
+                       not did_print:
+                        self._debug_message(si, sj, bi, bj, bit_i)
+                        self._debug_message(val, val_int, val_bin)
+                        self._debug_message(third_bit, first_bit)
+                        self._debug_message(extracted_bit, 'extracted')
+                        self._debug_message('-'*10)
+                        did_print = True
+
                     current_index += 1
 
         # check the bits we got from the slices
-        summed = numpy.sum(slice_messages, axis=0)
-        for s in summed:
-            if s > 2:
+        debug_str = ''
+        for s in range(message_length):
+            total = sum([slice_messages[i][s] for i in range(4)])
+            debug_str += str(total) + ' '
+            if total > 2:
                 bin_message += '1'
             else:
                 bin_message += '0'
+        self._debug_message(debug_str)
 
-        '''
-        # form the binary message
-        encoded = ''.join([chr(int(bin_message[i:i+8], 2)) 
-                 for i in range(0, len(bin_message), 8)])
-        message = ''
-        try:
-            message = decoder.decode(encoded)[0]
-        except rs.RSCodecError:
-            print 'RSCoder failed to read encoded message!'
-        return message[:32]
-        '''
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
-
-    def _get_bands(self, image):
-        bands = image.split()
-        output = []
-        for band in bands:
-            output.append(numpy.fromiter(iter(band.getdata()), numpy.uint8))
-            #output.append(numpy.array(list(band.getdata())))
-            output[-1].resize(image.width, image.height)
-        return output
