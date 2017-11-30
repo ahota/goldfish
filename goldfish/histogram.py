@@ -6,12 +6,13 @@ class HistogramWatermarker(Watermarker):
     Embedder/extractor using the reversible histogram method from
     Z. Ni, Y. Shi, et al. Reversible data hiding, 2006
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, chan='R', **kwargs):
         Watermarker.__init__(self, **kwargs)
         if self.debug:
             self.figure, self.axes = pyplot.subplots(2,sharex=True,tight_layout=True)
         else:
             self.figure = None
+        self.chan = chan
 
     def show_plot(self):
         if self.figure is None:
@@ -29,39 +30,36 @@ class HistogramWatermarker(Watermarker):
         else:
             bands = self._get_bands(image)
 
+        embed_band = 'RGB'.index(self.chan)
+        hist = Image.fromarray(bands[embed_band]).histogram()
         # get the histogram and alter the image channels
-        hists = [Image.fromarray(b).histogram() for b in bands]
         if self.debug:
             self.axes[0].set_title('before')
             self.axes[0].bar(range(256), hists[0], color='r', alpha=0.5)
             self.axes[0].bar(range(256), hists[1], color='g', alpha=0.5)
             self.axes[0].bar(range(256), hists[2], color='b', alpha=0.5)
             pyplot.show()
-        peaks = [self._get_max_point(hist) for hist in hists]
-        zeros = [self._get_min_point(hist) for hist in hists]
-        self._debug_message(peaks)
-        self._debug_message(zeros)
+        peak = self._get_max_point(hist)
+        trough = self._get_min_point(hist)
+        self._debug_message(peak)
+        self._debug_message(trough)
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
         self._debug_message(bin_message[:32])
-        #channels = [self.rng.choice(range(len(bands)))
-        #        for i in range(len(bin_message))]
-        channels = [1] * len(bin_message)
         # we can shift values to the right and embed the data at the same time
         current_index = 0
         done_embedding = False
         # for each band, shift right and embed data if we are not done and if
         # this is the right band for the current bit
-        for b_i in range(1, 2):
-            for i in range(width):
-                for j in range(height):
-                    if peaks[b_i] <= bands[b_i][i,j] <= zeros[b_i]:
-                        bands[b_i][i,j] += 1
-                    elif bands[b_i][i,j] == peaks[b_i]-1 and not done_embedding:
-                        if current_index >= len(bin_message):
-                            done = True
-                        elif b_i == channels[current_index]:
-                            bands[b_i][i,j] += int(bin_message[current_index])
-                            current_index += 1
+        for i in range(width):
+            for j in range(height):
+                if peak <= bands[embed_band][i,j] <= trough:
+                    bands[embed_band][i,j] += 1
+                elif bands[embed_band][i,j] == peak-1 and not done_embedding:
+                    if current_index >= len(bin_message):
+                        done_embedding = True
+                    else:
+                        bands[embed_band][i,j] += int(bin_message[current_index])
+                        current_index += 1
 
         return Image.merge('RGB', [Image.fromarray(band) for band in bands])
 
@@ -76,19 +74,17 @@ class HistogramWatermarker(Watermarker):
         else:
             bands = self._get_bands(image)
 
-        hists = [Image.fromarray(b).histogram() for b in bands]
+        embed_band = 'RGB'.index(self.chan)
+        hist = Image.fromarray(bands[embed_band]).histogram()
         if self.debug:
             self.axes[1].set_title('after')
             self.axes[1].bar(range(256), hists[0], color='r', alpha=0.5)
             self.axes[1].bar(range(256), hists[1], color='g', alpha=0.5)
             self.axes[1].bar(range(256), hists[2], color='b', alpha=0.5)
-        peaks = [self._get_max_point(hist) for hist in hists]
-        zeros = [self._get_min_point(hist) for hist in hists]
-        self._debug_message(peaks)
-        self._debug_message(zeros)
-        #channels = [self.rng.choice(range(len(bands)))
-        #        for i in range(message_length)]
-        channels = [1] * message_length
+        peak = self._get_max_point(hist)
+        trough = self._get_min_point(hist)
+        self._debug_message(peak)
+        self._debug_message(trough)
         bin_message = ''
 
         current_index = 0
@@ -99,14 +95,10 @@ class HistogramWatermarker(Watermarker):
             for j in range(height):
                 if done_extracting:
                     break
-                chan = channels[current_index]
-                if bands[chan][i,j] == peaks[chan] - 2:
+                if bands[embed_band][i,j] == peak - 2:
                     bin_message += '0'
                     current_index += 1
-                elif bands[chan][i,j] == peaks[chan] - 1:
-                    #print 'bands['+str(chan)+']['+str(i)+','+str(j)+'] =',
-                    #print bands[chan][i, j],
-                    #print 'peaks['+str(chan)+'] =', peaks[chan]
+                elif bands[embed_band][i,j] == peak - 1:
                     bin_message += '1'
                     current_index += 1
                 if current_index >= message_length:
