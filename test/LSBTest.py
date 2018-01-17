@@ -5,6 +5,7 @@ import uuid
 
 from PIL import Image, ImageMath, ImageDraw, ImageFont
 from argparse import ArgumentParser
+import os, binascii
 
 fnt = ImageFont.load_default().font
 
@@ -17,8 +18,8 @@ parser.add_argument('-n', '--n-rounds', type=int, default=1,
         help='Number of rounds to perform')
 parser.add_argument('-t', '--type', choices=imagetypes, default=imagetypes[0],
         help='Filetype to save during test')
-parser.add_argument('-q', '--quality', type=int, default=75,
-        help='Compression quality watermark should resist')
+parser.add_argument('-q', '--quality', type=int, default=95,
+        help='Quality factor to use when saving as JPEG')
 parser.add_argument('-k', '--bits-per-pixel', type=int, default=2,
         help='Bits per pixel to embed')
 parser.add_argument('-c', '--channel', choices=channels, default=channels[0],
@@ -33,6 +34,8 @@ parser.add_argument('-d', '--data-size', type=int, default=32,
         help='How many bytes of watermark data to embed/extract')
 parser.add_argument('--direct', action='store_true',
         help='Directly decode the watermarked image to test insertions/deletions')
+parser.add_argument('--stupid', action='store_true',
+        help='Embed a JPG in the bitmap')
 args = parser.parse_args()
 
 print_len = len(str(args.n_rounds))
@@ -46,7 +49,13 @@ for i in range(args.n_rounds):
     infile = sys.argv[1]
     outfile = infile[:-4]+'-altered.' + args.type
 
-    message = uuid.uuid4().hex
+    message = binascii.b2a_hex(os.urandom(max(1, args.data_size/2)))
+    if args.type == 'bmp' and args.stupid:
+        im = Image.open(infile)
+        stupid_name = infile[:-4]+'-stupid.jpeg'
+        im.save(stupid_name, quality=args.quality)
+        message = open(stupid_name, 'rb').read()
+    #message = uuid.uuid4().hex
     wm = Watermarker(bits_per_pixel=args.bits_per_pixel,
                      chan=args.channel,
                      debug=args.debug)
@@ -67,10 +76,16 @@ for i in range(args.n_rounds):
     if args.debug and not args.quiet:
         print 'Extracting'
     if args.direct:
-        retrieved = wm.extract(im_out)
+        retrieved = wm.extract(im_out, message_length=args.data_size*8)
     else:
-        im_out.save(outfile)
-        retrieved = wm.extract(outfile)
+        im_out.save(outfile, quality=args.quality)
+        retrieved = wm.extract(outfile, message_length=args.data_size*8)
+
+    if args.stupid:
+        stupid_name = infile[:-4]+'-recovered.jpeg'
+        f = open(stupid_name, 'wb')
+        f.write(retrieved)
+        f.close()
 
     if message != retrieved:
         if args.debug and not args.quiet:
@@ -82,7 +97,10 @@ for i in range(args.n_rounds):
             print 'Success!'
         successes += 1
 
-print successes, 'out of', args.n_rounds, 'successful'
+if not args.quiet:
+    print successes, 'out of', args.n_rounds, 'successful'
+
+sys.exit(successes)
 
 '''
 print 'Getting the diff'

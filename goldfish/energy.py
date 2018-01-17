@@ -11,7 +11,7 @@ class EnergyWatermarker(Watermarker):
     J. Lee and B. Li. Self-Recognized Image Protection Technique that Resists
     Large-Scale Cropping. 2014.
     '''
-    def __init__(self, bits=4, chan='luma', **kwargs):
+    def __init__(self, bits=4, chan='R', **kwargs):
         Watermarker.__init__(self, **kwargs)
         # used to get a list of DCT coefficients
         # from:
@@ -39,12 +39,14 @@ class EnergyWatermarker(Watermarker):
 
         width, height = image.size
 
-        yimage = image.convert('YCbCr')
-        bands = self._get_bands(yimage)
+        #yimage = image.convert('YCbCr')
+        #bands = self._get_bands(yimage)
+        bands = self._get_bands(image)
 
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
 
-        embed_band = ['luma', 'cb', 'cr'].index(self.chan)
+        #embed_band = ['luma', 'cb', 'cr'].index(self.chan)
+        embed_band = ['R', 'G', 'B'].index(self.chan)
         band = bands[embed_band]
         # using nomenclature from paper
         # - slices are quadrants of the image plane being watermarked
@@ -150,7 +152,9 @@ class EnergyWatermarker(Watermarker):
         self._debug_message(debug_str)
 
         # merge channels and convert back to RGB
-        watermarked = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
+        #watermarked = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
+        #return watermarked.convert('RGB')
+        watermarked = Image.merge('RGB', [Image.fromarray(b) for b in bands])
         return watermarked
 
 
@@ -164,11 +168,13 @@ class EnergyWatermarker(Watermarker):
             image = Image.open(image)
 
         width, height = image.size
-        yimage = image.convert('YCbCr')
-        bands = self._get_bands(yimage)
+        #yimage = image.convert('YCbCr')
+        #bands = self._get_bands(yimage)
+        bands = self._get_bands(image)
 
         bin_message = ''
-        extract_band = ['luma', 'cb', 'cr'].index(self.chan)
+        #extract_band = ['luma', 'cb', 'cr'].index(self.chan)
+        extract_band = ['R', 'G', 'B'].index(self.chan)
         band = bands[extract_band]
         # using nomenclature from paper
         # - slices are quadrants of the image plane being watermarked

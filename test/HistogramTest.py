@@ -2,6 +2,7 @@ import sys
 sys.path.append('../')
 from goldfish.histogram import HistogramWatermarker
 import uuid
+import os, binascii
 
 from PIL import Image, ImageMath
 from argparse import ArgumentParser
@@ -15,8 +16,8 @@ parser.add_argument('-n', '--n-rounds', type=int, default=1,
         help='Number of rounds to perform')
 parser.add_argument('-t', '--type', choices=imagetypes, default=imagetypes[0],
         help='Filetype to save during test')
-parser.add_argument('-q', '--quality', type=int, default=75,
-        help='Compression level to use when saving as JPEG')
+parser.add_argument('-q', '--quality', type=int, default=95,
+        help='Quality factor to use when saving as JPEG')
 parser.add_argument('-c', '--channel', choices=channels, default=channels[0],
         help='Channel to embed in')
 parser.add_argument('--debug', action='store_true',
@@ -42,7 +43,8 @@ for i in range(args.n_rounds):
     if not args.quiet:
         print '{num:{w}}/{t}'.format(num=i+1, w=print_len, t=args.n_rounds)
 
-    message = uuid.uuid4().hex
+    message = binascii.b2a_hex(os.urandom(max(1, args.data_size/2)))
+    #message = uuid.uuid4().hex
     wm = HistogramWatermarker(chan=args.channel,
             debug=args.debug)
 
@@ -58,7 +60,7 @@ for i in range(args.n_rounds):
         im_out.save(outfile, format=args.type, quality=args.quality)
         im_out = Image.open(outfile)
 
-    retrieved = wm.extract(outfile)
+    retrieved = wm.extract(outfile, message_length=args.data_size*8)
 
     if message != retrieved:
         if args.n_rounds == 1 and not args.quiet:
@@ -74,6 +76,8 @@ for i in range(args.n_rounds):
 
 if not args.quiet:
     print successes, 'successful extractions out of', args.n_rounds
+
+sys.exit(successes)
 
 '''
 print 'Getting the diff'

@@ -3,6 +3,7 @@ sys.path.append('../')
 from goldfish.entropy import EntropyWatermarker
 from goldfish.message import create_dummy_message
 import uuid
+import os, binascii, random
 
 from PIL import Image, ImageMath
 from skimage import data
@@ -10,7 +11,7 @@ from skimage import data
 from argparse import ArgumentParser
 from StringIO import StringIO
 
-imagetypes = ('jpeg', 'png')
+imagetypes = ('jpeg', 'png', 'bmp')
 
 parser = ArgumentParser()
 parser.add_argument('image', help='Path to the image to test with')
@@ -18,7 +19,7 @@ parser.add_argument('-n', '--n-rounds', type=int, default=1,
         help='Number of rounds to perform')
 parser.add_argument('-t', '--type', choices=imagetypes, default=imagetypes[0],
         help='Filetype to save during test')
-parser.add_argument('-q', '--quality', type=int, default=75,
+parser.add_argument('-q', '--quality', type=int, default=95,
         help='Compression quality watermark should resist')
 parser.add_argument('-e', '--entropy-threshold', type=int, default=4000,
         help='Block entropy threshold')
@@ -40,6 +41,8 @@ args = parser.parse_args()
 
 n_rounds = args.n_rounds
 successes = 0
+# yes this is stupid
+hex_digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
 
 print_len = len(str(n_rounds))
 if args.super_debug:
@@ -52,8 +55,15 @@ for i in range(n_rounds):
     #outfile = '.'.join(infile.split('.')[:-1])+'-altered.' + args.type
     outfile = StringIO()
 
-    message = create_dummy_message()[:args.data_size] #uuid.uuid4().hex
-    wm = EntropyWatermarker(quality=args.quality,
+    message = ''.join([random.choice(hex_digits) for _ in range(args.data_size)])
+    if args.debug and not args.quiet:
+        print 'Length of message (bytes) =', len(message)
+        print 'Length of message (bits) =', len(message)*8
+    #message = create_dummy_message()[:args.data_size] #uuid.uuid4().hex
+    resilience = args.quality
+    if args.quality > 75 or args.type != 'jpeg':
+        resilience = 75
+    wm = EntropyWatermarker(quality=resilience,
             bits=args.bits_per_block,
             threshold=args.entropy_threshold,
             chan=args.channel,
@@ -75,7 +85,7 @@ for i in range(n_rounds):
     if not args.direct:
         im_out.save(outfile, format=args.type, quality=args.quality)
         im_out = Image.open(outfile)
-    retrieved = wm.extract(im_out, message_length=len(message)*8)
+    retrieved = wm.extract(im_out, message_length=args.data_size*8)
 
     if message != retrieved:
         if n_rounds == 1 and not args.quiet:

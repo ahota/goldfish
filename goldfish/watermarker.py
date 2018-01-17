@@ -41,12 +41,17 @@ class Watermarker(object):
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
 
         n_places = len(bin_message)/self.k_bits
+        self._debug_message('n_places before', n_places)
         if len(bin_message) % self.k_bits != 0:
             n_places += 1
+        self._debug_message('n_places after', n_places)
 
         # locations to embed data in, randomly located across the image
-        locations = zip(self.rng.sample(xrange(height), n_places),
-                        self.rng.sample(xrange(width ), n_places))
+        locations = list(numpy.ndindex((height, width)))
+        self.rng.shuffle(locations)
+        self._debug_message('locations[:10]', locations[:10])
+        #locations = zip(self.rng.sample(xrange(height), n_places),
+        #                self.rng.sample(xrange(width ), n_places))
         luma = bands[self.band]
 
         for b_i in range(n_places):
@@ -94,8 +99,11 @@ class Watermarker(object):
         if message_length % self.k_bits != 0:
             n_places += 1
 
-        locations = zip(self.rng.sample(xrange(height), n_places),
-                        self.rng.sample(xrange(width ), n_places))
+        locations = list(numpy.ndindex((height, width)))
+        self.rng.shuffle(locations)
+        self._debug_message('locations[:10]', locations[:10])
+        #locations = zip(self.rng.sample(xrange(height), n_places),
+        #                self.rng.sample(xrange(width ), n_places))
         luma = bands[self.band]
 
         bin_message = ''

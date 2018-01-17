@@ -3,13 +3,15 @@ sys.path.append('../')
 from goldfish.energy import EnergyWatermarker
 import uuid
 import time
+import os, binascii
 
 from PIL import Image, ImageMath
 from matplotlib import pyplot
 from argparse import ArgumentParser
 
-imagetypes = ('jpeg', 'png')
-channels = ('luma', 'cb', 'cr')
+imagetypes = ('jpeg', 'png', 'bmp')
+#channels = ('luma', 'cb', 'cr')
+channels = ('R', 'G', 'B')
 
 parser = ArgumentParser()
 parser.add_argument('image', help='Path to the image to test with')
@@ -47,7 +49,8 @@ for i in range(args.n_rounds):
     if not args.quiet:
         print '{num:{w}}/{t}'.format(num=i+1, w=print_len, t=args.n_rounds)
 
-    message = uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
+    message = binascii.b2a_hex(os.urandom(max(1, args.data_size/2)))
+    #message = uuid.uuid4().hex #format(uuid.uuid1().time_low, 'x')
 
     wm = EnergyWatermarker(bits=args.bits_per_block,
             chan=args.channel,
@@ -65,7 +68,7 @@ for i in range(args.n_rounds):
         im_out.save(outfile, format=args.type, quality=args.quality)
         im_out = Image.open(outfile)
 
-    retrieved = wm.extract(im_out)
+    retrieved = wm.extract(im_out, message_length=args.data_size*8)
 
     if message != retrieved:
         if args.n_rounds == 1 and not args.quiet:
@@ -79,6 +82,8 @@ for i in range(args.n_rounds):
 
 if not args.quiet:
     print successes, 'out of', args.n_rounds
+
+sys.exit(successes)
 
 '''
 print 'Getting the diff'
