@@ -5,7 +5,7 @@ import uuid
 
 from PIL import Image, ImageMath, ImageDraw, ImageFont
 from argparse import ArgumentParser
-import os, binascii
+import os, random
 
 fnt = ImageFont.load_default().font
 
@@ -49,7 +49,7 @@ for i in range(args.n_rounds):
     infile = sys.argv[1]
     outfile = infile[:-4]+'-altered.' + args.type
 
-    message = binascii.b2a_hex(os.urandom(max(1, args.data_size/2)))
+    message = ''.join(random.choice('0123456789abcdef') for i in range(args.data_size))
     if args.type == 'bmp' and args.stupid:
         im = Image.open(infile)
         stupid_name = infile[:-4]+'-stupid.jpeg'

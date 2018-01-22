@@ -24,12 +24,18 @@ class Watermarker(object):
         self.symbols = []
         self.mode = 'RGB'
         self.band = self.mode.index(chan)
+        # flag to know if this object did the embedding when extracting a
+        # message from an image. This prevents the extractor from doing
+        # error-checking against the symbols list, which will be empty if
+        # this object did not do the embedding
+        self.did_embed = False
 
     @seeded
     def embed(self, image, message):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
 
+        self.did_embed = True
         width, height = image.size
 
         yimage = image.convert(self.mode)
@@ -96,8 +102,12 @@ class Watermarker(object):
         bands = self._get_bands(yimage)
 
         n_places = message_length/self.k_bits
-        if message_length % self.k_bits != 0:
+        leftovers = message_length % self.k_bits
+        self._debug_message('n_places before', n_places)
+        if leftovers != 0:
             n_places += 1
+            self._debug_message('n_places after', n_places)
+        self._debug_message('leftovers', leftovers)
 
         locations = list(numpy.ndindex((height, width)))
         self.rng.shuffle(locations)
@@ -109,14 +119,17 @@ class Watermarker(object):
         bin_message = ''
         for b_i in range(n_places):
             data = format(luma[locations[b_i]], 'b').zfill(8)
-            symbol = data[-self.k_bits:]
-            self.symbols[b_i].append(symbol)
+            if b_i == n_places - 1 and leftovers != 0:
+                symbol = data[-leftovers:]
+            else:
+                symbol = data[-self.k_bits:]
+            if self.debug and self.did_embed:
+                self.symbols[b_i].append(symbol)
             bin_message += symbol
 
-        '''
-        for symbol in self.symbols:
-            print symbol[0], '->', symbol[1]
-        '''
+        if self.debug and self.did_embed:
+            for symbol in self.symbols:
+                print symbol[0], '->', symbol[1]
 
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
