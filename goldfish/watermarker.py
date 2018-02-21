@@ -53,8 +53,12 @@ class Watermarker(object):
         self._debug_message('n_places after', n_places)
 
         # locations to embed data in, randomly located across the image
-        locations = list(numpy.ndindex((width, height)))
-        self.rng.shuffle(locations)
+        indices = []
+        while len(indices) < n_places:
+            n = self.rng.randint(0, height*width)
+            if n not in indices:
+                indices.append(n)
+        locations = [(i%width, i/width) for i in indices]
         self._debug_message('locations[:10]', locations[:10])
         #locations = zip(self.rng.sample(xrange(height), n_places),
         #                self.rng.sample(xrange(width ), n_places))
@@ -109,8 +113,12 @@ class Watermarker(object):
             self._debug_message('n_places after', n_places)
         self._debug_message('leftovers', leftovers)
 
-        locations = list(numpy.ndindex((width, height)))
-        self.rng.shuffle(locations)
+        indices = []
+        while len(indices) < n_places:
+            n = self.rng.randint(0, height*width)
+            if n not in indices:
+                indices.append(n)
+        locations = [(i%width, i/width) for i in indices]
         self._debug_message('locations[:10]', locations[:10])
         #locations = zip(self.rng.sample(xrange(height), n_places),
         #                self.rng.sample(xrange(width ), n_places))
