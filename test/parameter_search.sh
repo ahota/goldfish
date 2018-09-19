@@ -6,7 +6,7 @@ padlen=${#nrounds}
 bitsmin=1
 bitsmax=63
 threshmin=250
-threshmax=5000
+threshmax=10000
 threshpad=${#threshmax}
 threshstep=250
 quality="bmp"
@@ -20,7 +20,7 @@ runtest() {
         for (( bits = bitsmin; bits < bitsmax+1; bits++ )); do
             printf $'out: out.%u.%u\n' $bits $thresh
             printf $'out.%u.%u:\n' $bits $thresh
-            printf $'\tpython EntropyTest.py ../images/surface/heptane0000.0.4.png -b %s -e %s -n %s -d %d -t %s --quiet; echo $$? > $@\n' \
+            printf $'\tpython EntropyTest.py ../images/resubmission/molecule/girus.0000.0.4.png -b %s -e %s -n %s -d %d -t %s --quiet --stream; echo $$? > $@\n' \
                 $bits $thresh $nrounds $datasize $quality
         done
     done

@@ -31,14 +31,11 @@ class HistogramWatermarker(Watermarker):
             bands = self._get_bands(image)
 
         embed_band = 'RGB'.index(self.chan)
-        hist = Image.fromarray(bands[embed_band]).histogram()
         # get the histogram and alter the image channels
+        hist = Image.fromarray(bands[embed_band]).histogram()
         if self.debug:
             self.axes[0].set_title('before')
-            self.axes[0].bar(range(256), hists[0], color='r', alpha=0.5)
-            self.axes[0].bar(range(256), hists[1], color='g', alpha=0.5)
-            self.axes[0].bar(range(256), hists[2], color='b', alpha=0.5)
-            pyplot.show()
+            self.axes[0].bar(range(256), hist, color=self.chan.lower(), alpha=0.5)
         peak = self._get_max_point(hist)
         trough = self._get_min_point(hist)
         self._debug_message(peak)
@@ -78,9 +75,8 @@ class HistogramWatermarker(Watermarker):
         hist = Image.fromarray(bands[embed_band]).histogram()
         if self.debug:
             self.axes[1].set_title('after')
-            self.axes[1].bar(range(256), hists[0], color='r', alpha=0.5)
-            self.axes[1].bar(range(256), hists[1], color='g', alpha=0.5)
-            self.axes[1].bar(range(256), hists[2], color='b', alpha=0.5)
+            self.axes[1].bar(range(256), hist, color=self.chan.lower(), alpha=0.5)
+            pyplot.show()
         peak = self._get_max_point(hist)
         trough = self._get_min_point(hist)
         self._debug_message(peak)

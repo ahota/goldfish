@@ -2,7 +2,7 @@ import sys
 sys.path.append('../')
 from goldfish.histogram import HistogramWatermarker
 import uuid
-import os, binascii
+import os, binascii, time
 
 from PIL import Image, ImageMath
 from argparse import ArgumentParser
@@ -30,12 +30,17 @@ parser.add_argument('-d', '--data-size', type=int, default=32,
         help='How many bytes of watermark data to embed/extract')
 parser.add_argument('--direct', action='store_true',
         help='Directly decode the watermarked image to test insertions/deletions')
+parser.add_argument('--time', action='store_true',
+        help='Time the embedding process')
 args = parser.parse_args()
 
 infile = sys.argv[1]
 outfile = infile[:-4]+'-altered.' + args.type
 successes = 0
 print_len = len(str(args.n_rounds))
+times = []
+ext_times = []
+start = 0
 if args.super_debug:
     args.debug = True
 
@@ -48,7 +53,12 @@ for i in range(args.n_rounds):
     wm = HistogramWatermarker(chan=args.channel,
             debug=args.debug)
 
+    if args.time:
+        start = time.time()
     im_out = wm.embed(infile, message)
+    end = time.time()
+    if args.time:
+        times.append(end - start)
 
     if args.super_debug:
         im = Image.open(infile)
@@ -60,7 +70,12 @@ for i in range(args.n_rounds):
         im_out.save(outfile, format=args.type, quality=args.quality)
         im_out = Image.open(outfile)
 
+    if args.time:
+        start = time.time()
     retrieved = wm.extract(outfile, message_length=args.data_size*8)
+    end = time.time()
+    if args.time:
+        ext_times.append(end - start)
 
     if message != retrieved:
         if args.n_rounds == 1 and not args.quiet:
@@ -76,6 +91,9 @@ for i in range(args.n_rounds):
 
 if not args.quiet:
     print successes, 'successful extractions out of', args.n_rounds
+if args.time:
+    print sum(times)/len(times), 's average embed time'
+    print sum(ext_times)/len(ext_times), 's average extract time'
 
 sys.exit(successes)
 
