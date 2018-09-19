@@ -3,3 +3,11 @@
 .*.swp
 *.png
 *.jpg
+
+configs/
+images/
+test/orig
+test/decoded
+test/worked
+test/profiling_results
+test/spec_thresh_table.txt
