@@ -2,6 +2,8 @@ from watermarker import *
 from scipy.fftpack import dct, idct
 from unireedsolomon import rs
 
+from matplotlib import pyplot
+
 class EntropyWatermarker(Watermarker):
     '''
     Embedder/extractor using the entropy thresholding scheme from
@@ -69,31 +71,39 @@ class EntropyWatermarker(Watermarker):
         entropies = []
         current_index = 0
         n_blocks_embedded = 0
+
         # divide the tile into 8x8 blocks
         blocks = numpy.array(
             [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
             for (i, j) in numpy.ndindex(width/bw, width/bh)]
         ).reshape(width/bw, height/bh, bw, bh)
 
+        # for making a heatmap
+        entropy_matrix = numpy.zeros((width/bw, height/bh))
+        valid_blocks = 0
+
         # for each block
         for (bi, bj) in numpy.ndindex(width/bw, height/bh):
 
-            if current_index >= len(bin_message):
-                if self.show_embed:
-                    blocks[bi, bj][:] = 255 # whiteout the stopping block
-                break
-
-            # 2d dct
-            block = dct(dct(blocks[bi, bj].T, norm='ortho').T,
-                    norm='ortho')
+            # perform 2d dct
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
 
             # check block entropy
             orig_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
             entropies.append(orig_entropy)
+            entropy_matrix[bi, bj] = orig_entropy
+
             if orig_entropy < self.entropy_threshold:
                 if self.show_embed:
                     blocks[bi, bj] = self._draw_x(blocks[bi, bj])
                 continue # skip this block
+            valid_blocks += 1
+
+            if current_index >= len(bin_message):
+                # we've already embedded the whole message
+                if self.show_embed:
+                    blocks[bi, bj][:] = 255 # whiteout the stopping block
+                continue
 
             # divide by the jpeg quantization matrix
             # image should resist up to <quality> jpeg compression
@@ -116,6 +126,8 @@ class EntropyWatermarker(Watermarker):
 
             # un-zigzag the block
             block = block[self.zigzagflatinverse].reshape(8, 8)
+            # multiply by quantization matrix
+            block *= quantize_matrix
 
             # check the new entropy
             new_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
@@ -123,13 +135,13 @@ class EntropyWatermarker(Watermarker):
                 if self.show_embed:
                     blocks[bi, bj] = self._draw_line(blocks[bi, bj])
                 # leave this block as is and continue
+                self._debug_message('block {:2d} {:2d}'.format(bi, bj),
+                        'fell to {:.3f} from {:.3f}'.format(new_entropy, orig_entropy))
                 continue
             else:
                 current_index += self.bits_per_block
                 n_blocks_embedded += 1
 
-            # multiply by quantization matrix
-            block *= quantize_matrix
             # inverse dct
             block = idct(idct(block, norm='ortho').T, norm='ortho').T
             # reassign back to tile
@@ -143,9 +155,18 @@ class EntropyWatermarker(Watermarker):
         band = numpy.hstack([numpy.vstack(blocks[:,i])
             for i in range(width/bw)])
 
-        self._debug_message(min(entropies), max(entropies),
+        if self.show_embed:
+            # create heatmap
+            fig, ax = pyplot.subplots()
+            im = ax.imshow(entropy_matrix, cmap='viridis')
+            cbar = ax.figure.colorbar(im, ax=ax)
+            cbar.ax.set_ylabel('entropy', rotation=-90, va='bottom')
+            pyplot.show()
+
+        self._debug_message('number of blocks above', self.entropy_threshold,
+                valid_blocks)
+        self._debug_message('min/max/avg entropy', min(entropies), max(entropies),
                 sum(entropies)/len(entropies))
-        self._debug_message(sorted(entropies, reverse=True)[:5])
         self._debug_message('blocks used:', n_blocks_embedded)
 
         # reassemble the tiles into a channel
