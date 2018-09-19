@@ -57,37 +57,7 @@ class EntropyWatermarker(Watermarker):
 
         embed_band = ['luma', 'cb', 'cr'].index(self.chan)
 
-        '''
-        # encode with Reed-Solomon
-        # assume an 8-bit symbol size s (ie ASCII character)
-        # the message contains k symbols
-        # the encoded message contains n symbols where n >= k
-        # but n <= 2^s-1 symbols long
-        # here, len(message) is a value in units of number of symbols
-        coder = rs.RSCoder(96, len(message))
-        field_vals = coder.encode(message, return_string=False)
-        #self._debug_message([int(fv) for fv in field_vals])
-
-        # the binary version of the encoded message is at most 2040 bits
-        # because 2^8 - 1 = 255 symbols * 8 = 2040 bits
-        # it COULD be shorter, but since the message structure is now
-        # fixed to 1024 bits (128 bytes), we can just stick to the max
-        bin_message = ''.join([bin(fv)[2:].zfill(8) for fv in field_vals])
-        '''
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        '''
-        # the binary message may not be a multiple of the number of bits
-        # we're embedding per block (e.g. 2040 / 16 = 127.5)
-        # so pad with zeros to the next multiple
-        if len(bin_message) % self.bits_per_block != 0:
-            self._debug_message('Encoded message needs padding', len(bin_message))
-            bin_message += '0'*(self.bits_per_block - len(bin_message)%self.bits_per_block)
-
-        #self._debug_message('First 32 bits of bin message', bin_message[:32])
-        self._debug_message('Encoded message length =', len(bin_message), 'bits')
-        self._debug_message('Is multiple of bits-per-byte?',
-                (len(bin_message)%self.bits_per_block==0))
-        '''
         self._debug_message(' '.join(bin_message))
         quantize_matrix = self._setup_quantize_matrix(self.quality)
         
@@ -200,8 +170,6 @@ class EntropyWatermarker(Watermarker):
         ex_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''
-        # get a decoder ready
-        #decoder = rs.RSCoder(96, message_length/8)
         quantize_matrix = self._setup_quantize_matrix(self.quality)
         
         bw = 8 # block width
@@ -211,21 +179,6 @@ class EntropyWatermarker(Watermarker):
 
         # embed the message in each tile
         current_index = 0
-        '''
-        # the actual length of the embedded message is
-        # the expected length plus any padding we had to do
-        if (96*8) % self.bits_per_block != 0:
-            actual_length = 96*8 + (self.bits_per_block-((96*8)%self.bits_per_block))
-            self._debug_message('Expected length of message (bits):', 96*8)
-            self._debug_message('Actual length to search for (bits):', actual_length)
-        else:
-            actual_length = message_length
-        if message_length % self.bits_per_block != 0:
-            self._debug_message('Message is not multiple of bits-per-block',
-                    message_length, self.bits_per_block)
-            message_length += (self.bits_per_block - message_length % self.bits_per_block)
-            self._debug_message('Message length now', message_length)
-        '''
         # divide the tile into 8x8 ps blocks
         blocks = numpy.array(
             [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
@@ -256,17 +209,6 @@ class EntropyWatermarker(Watermarker):
             current_index += self.bits_per_block
 
         self._debug_message(' '.join(bin_message))
-        #bin_message = bin_message[:message_length]
-        '''
-        # form the binary message
-        encoded = ''.join([chr(int(bin_message[i:i+8], 2)) 
-                 for i in range(0, len(bin_message), 8)])
-        message = ''
-        try:
-            message = decoder.decode(encoded)[0]
-        except rs.RSCodecError:
-            print 'RSCoder failed to read encoded message!'
-        '''
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
 
