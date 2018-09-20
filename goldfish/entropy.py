@@ -45,7 +45,8 @@ class EntropyWatermarker(Watermarker):
         self.chan = chan
         self.show_embed = show_embed
         # heatmaps of pre- and post- embedding entropy
-        self.fig, self.axes = pyplot.subplots(nrows=1, ncols=2, sharey=True)
+        self.fig, self.axes = pyplot.subplots(nrows=1, ncols=2, sharex=True, sharey=True)
+        self.fig.set_size_inches((13.3, 5))
         self.max_entropy = 0
 
     @seeded
@@ -114,6 +115,7 @@ class EntropyWatermarker(Watermarker):
             block = block.flatten()[self.zigzagflat] # get in zig zag order
 
             # embed bits_per_block bits of the message into this block
+            '''
             for bit_i in range(1, 1+self.bits_per_block):
                 if current_index + bit_i - 1 >= len(bin_message):
                     self._debug_message('Early termination:',
@@ -126,6 +128,7 @@ class EntropyWatermarker(Watermarker):
                 else:
                     # round coefficient to the nearest even number
                     block[bit_i] = 2 * numpy.round(block[bit_i]/2)
+            '''
 
             # un-zigzag the block
             block = block[self.zigzagflatinverse].reshape(8, 8)
@@ -160,6 +163,7 @@ class EntropyWatermarker(Watermarker):
 
         # create heatmap
         im = self.axes[0].imshow(entropy_matrix, cmap='viridis', aspect=1)
+        self.axes[0].set(adjustable='box-forced', aspect='equal')
         cbar = self.axes[0].figure.colorbar(im, ax=self.axes[0])
         cbar.ax.set_ylabel('entropy', rotation=-90, va='bottom')
 
@@ -222,6 +226,7 @@ class EntropyWatermarker(Watermarker):
                 continue
             valid_blocks += 1
             block = block.flatten()[self.zigzagflat] # get in zig zag order
+            '''
             for bit_i in range(1, 1+self.bits_per_block):
                 if current_index + bit_i - 1 >= message_length:
                     self._debug_message('Early termination:',
@@ -233,9 +238,11 @@ class EntropyWatermarker(Watermarker):
                 else:
                     bin_message += '1'
             current_index += self.bits_per_block
+            '''
 
 
         im = self.axes[1].imshow(entropy_matrix, cmap='viridis', vmax=self.max_entropy, aspect=1)
+        self.axes[1].set(adjustable='box-forced', aspect='equal')
         cbar = self.axes[1].figure.colorbar(im, ax=self.axes[1])
         cbar.ax.set_ylabel('entropy', rotation=-90, va='bottom')
 
