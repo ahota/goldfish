@@ -84,8 +84,8 @@ class EntropyWatermarker(Watermarker):
             bands = self._get_bands(image)
         return (bands, width, height)
 
-    def entropy_heatmap(self, image, message):
-        bands, width, height = self._prepare_image(image)
+    def entropy_heatmap(self, image, apply_qm=False):
+        bands, width, height = self._prep_image(image)
 
         bw = 8
         bh = 8
@@ -94,9 +94,18 @@ class EntropyWatermarker(Watermarker):
         blocks = self._divide_blocks(band, width, height, bw, bh)
         entropy_matrix = numpy.zeros((width/bw, height/bh))
 
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
+
         for (bi, bj) in numpy.ndindex(width/bw, height/bh):
             block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
             entropy_matrix[bi, bj] = self._calculate_entropy(block)
+
+            if apply_qm:
+                block /= quantize_matrix
+                block = block.flatten()[self.zigzagflat] # get in zig zag order
+                block = block[self.zigzagflatinverse].reshape(8, 8)
+                block *= quantize_matrix
+
             block = idct(idct(block, norm='ortho').T, norm='ortho').T
             blocks[bi, bj] = block
 
