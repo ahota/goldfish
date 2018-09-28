@@ -185,22 +185,13 @@ class EntropyWatermarker(Watermarker):
         candidate_block_indices = self._find_candidate_blocks(blocks, width, height, bw, bh)
 
         # for each block
-        for (bi, bj) in numpy.ndindex(width/bw, height/bh):
+        for (bi, bj) in candidate_block_indices:
+            if current_index >= len(bin_message):
+                # we've already embedded the whole message
+                break
 
             # perform 2d dct
             block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
-
-            # check block entropy
-            orig_entropy = self._calculate_entropy(block)
-            entropies.append(orig_entropy)
-
-            if orig_entropy < self.entropy_threshold:
-                continue # skip this block
-            valid_blocks += 1
-
-            if current_index >= len(bin_message):
-                # we've already embedded the whole message
-                continue
 
             # divide by the jpeg quantization matrix
             # image should resist up to <quality> jpeg compression
@@ -217,12 +208,8 @@ class EntropyWatermarker(Watermarker):
             # check the new entropy
             new_entropy = self._calculate_entropy(block)
             if new_entropy < self.entropy_threshold:
-                if self.show_embed:
-                    blocks[bi, bj] = self._draw_line(blocks[bi, bj])
                 # leave this block as is and continue
-                self._debug_message('block {:2d} {:2d}'.format(bi, bj),
-                        'fell to {:.3f} from {:.3f}'.format(new_entropy, orig_entropy))
-                continue
+                pass
             else:
                 current_index += self.bits_per_block
                 n_blocks_embedded += 1
@@ -239,13 +226,6 @@ class EntropyWatermarker(Watermarker):
         # reassemble the tile
         band = numpy.hstack([numpy.vstack(blocks[:,i])
             for i in range(width/bw)])
-
-        self._debug_message('number of blocks above', self.entropy_threshold,
-                valid_blocks)
-        self._debug_message('min/max/avg entropy', min(entropies), max(entropies),
-                sum(entropies)/len(entropies))
-        self._debug_message('blocks used:', n_blocks_embedded)
-        self.max_entropy = max(entropies)
 
         # reassemble the tiles into a channel
         bands[embed_band] = band
