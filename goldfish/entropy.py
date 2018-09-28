@@ -44,10 +44,6 @@ class EntropyWatermarker(Watermarker):
         self.entropy_threshold = threshold
         self.chan = chan
         self.show_embed = show_embed
-        # heatmaps of pre- and post- embedding entropy
-        self.fig, self.axes = pyplot.subplots(nrows=1, ncols=2, sharex=True, sharey=True)
-        self.fig.set_size_inches((13.3, 5))
-        self.max_entropy = 0
 
     def _divide_blocks(self, band, width, height, bw, bh):
         return numpy.array(
@@ -62,9 +58,6 @@ class EntropyWatermarker(Watermarker):
         # embed bits_per_block bits of the message into this block
         for bit_i in range(1, 1+self.bits_per_block):
             if current_index + bit_i - 1 >= len(bin_message):
-                self._debug_message('Early termination:',
-                    'embedded length of message at block',
-                    bi, bj, 'and bit', bit_i)
                 break
             if bin_message[current_index+bit_i-1] == '1':
                 # round coefficient to the nearest odd number
@@ -115,16 +108,62 @@ class EntropyWatermarker(Watermarker):
         return (merged.convert('RGB'), entropy_matrix)
 
     @seeded
-    def embed(self, image, message):
-        if type(image) is str or type(image) is unicode:
-            image = Image.open(image)
+    def check_embed_entropy(self, image, message):
+        bands, width, height = self._prep_image(image)
+        embed_band = ['luma', 'cb', 'cr'].index(self.chan)
 
-        width, height = image.size
-        image = image.convert('YCbCr')
-        if len(image.getbands()) > 3:
-            bands = self._get_bands(image)[:3]
-        else:
-            bands = self._get_bands(image)
+        bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
+        
+        bw = 8 # block width
+        bh = 8 # block height
+
+        band = bands[embed_band]
+        current_index = 0
+
+        blocks = self._divide_blocks(band, width, height, bw, bh)
+        entropy_status = numpy.zeros((width/bw, height/bh))
+
+        for(bi, bj) in numpy.ndindex(width/bw, height/bh):
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+            orig_entropy = self._calculate_entropy(block)
+
+            if current_index >= len(bin_message):
+                entropy_status[bi, bj] = 0 # end of message reached
+                continue
+            if orig_entropy < self.entropy_threshold:
+                entropy_status[bi, bj] = 1 # entropy too low
+                continue
+
+            block /= quantize_matrix
+            block = block.flatten()[self.zigzagflat]
+            self._embed_k_bits(block, bin_message, current_index)
+            block = block[self.zigzagflatinverse].reshape(bw, bh)
+            block *= quantize_matrix
+
+            new_entropy = self._calculate_entropy(block)
+
+            if new_entropy < self.entropy_threshold:
+                entropy_status[bi, bj] = 2 # entropy fell below after embedding
+                continue
+            current_index += self.bits_per_block
+            entropy_status[bi, bj] = 3 # entropy remained above after embedding
+
+        return entropy_status
+
+    def _find_candidate_blocks(self, blocks, width, height, bw, bh):
+        candidates = []
+        for (bi, bj) in numpy.ndindex(width/bw, height/bh):
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+            entropy = self._calculate_entropy(block)
+            if entropy > self.entropy_threshold:
+                candidates.append((bi, bj))
+            block = idct(idct(block, norm='ortho').T, norm='ortho').T
+        return candidates
+
+    @seeded
+    def embed(self, image, message):
+        bands, width, height = self._prep_image(image)
         embed_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
@@ -139,13 +178,11 @@ class EntropyWatermarker(Watermarker):
         entropies = []
         current_index = 0
         n_blocks_embedded = 0
+        valid_blocks = 0
 
         # divide the tile into 8x8 blocks
         blocks = self._divide_blocks(band, width, height, bw, bh)
-
-        # for making a heatmap
-        entropy_matrix = numpy.zeros((width/bw, height/bh))
-        valid_blocks = 0
+        candidate_block_indices = self._find_candidate_blocks(blocks, width, height, bw, bh)
 
         # for each block
         for (bi, bj) in numpy.ndindex(width/bw, height/bh):
@@ -156,12 +193,10 @@ class EntropyWatermarker(Watermarker):
             # check block entropy
             orig_entropy = self._calculate_entropy(block)
             entropies.append(orig_entropy)
-            entropy_matrix[bi, bj] = orig_entropy
 
             if orig_entropy < self.entropy_threshold:
                 continue # skip this block
-            else:
-                valid_blocks += 1
+            valid_blocks += 1
 
             if current_index >= len(bin_message):
                 # we've already embedded the whole message
@@ -180,7 +215,7 @@ class EntropyWatermarker(Watermarker):
             block *= quantize_matrix
 
             # check the new entropy
-            new_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
+            new_entropy = self._calculate_entropy(block)
             if new_entropy < self.entropy_threshold:
                 if self.show_embed:
                     blocks[bi, bj] = self._draw_line(blocks[bi, bj])
@@ -205,12 +240,6 @@ class EntropyWatermarker(Watermarker):
         band = numpy.hstack([numpy.vstack(blocks[:,i])
             for i in range(width/bw)])
 
-        # create heatmap
-        im = self.axes[0].imshow(entropy_matrix, cmap='viridis', aspect=1)
-        self.axes[0].set(adjustable='box-forced', aspect='equal')
-        cbar = self.axes[0].figure.colorbar(im, ax=self.axes[0])
-        cbar.ax.set_ylabel('entropy', rotation=-90, va='bottom')
-
         self._debug_message('number of blocks above', self.entropy_threshold,
                 valid_blocks)
         self._debug_message('min/max/avg entropy', min(entropies), max(entropies),
@@ -226,16 +255,7 @@ class EntropyWatermarker(Watermarker):
     # message length in units of bits, not bytes!
     @seeded
     def extract(self, image, message_length=256):
-        if type(image) is str or type(image) is unicode:
-            image = Image.open(image)
-
-        width, height = image.size
-        image = image.convert('YCbCr')
-        if len(image.getbands()) > 3:
-            bands = self._get_bands(image)[:3]
-        else:
-            bands = self._get_bands(image)
-
+        bands, width, height = self._prep_image(image)
         ex_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''
@@ -245,26 +265,20 @@ class EntropyWatermarker(Watermarker):
         bh = 8 # block height
 
         band = bands[ex_band]
-        entropy_matrix = numpy.zeros((width/bw, height/bh))
 
         # embed the message in each tile
         current_index = 0
         # divide the tile into 8x8 ps blocks
-        blocks = numpy.array(
-            [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
-            for (i, j) in numpy.ndindex(width/bw, height/bh)]
-        ).reshape(width/bw, height/bh, bw, bh)
+        blocks = self._divide_blocks(band, width, height, bw, bh)
         # for each block
         valid_blocks = 0
         for (bi, bj) in numpy.ndindex(width/bw, height/bh):
             if current_index >= message_length:
                 break
             # 2d dct
-            block = dct(dct(blocks[bi, bj].T, norm='ortho').T,
-                    norm='ortho')
-            block /= quantize_matrix
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
             entropy = self._calculate_entropy(block)
-            entropy_matrix[bi, bj] = entropy
+            block /= quantize_matrix
             if entropy < self.entropy_threshold:
                 continue
             valid_blocks += 1
@@ -281,18 +295,9 @@ class EntropyWatermarker(Watermarker):
                     bin_message += '1'
             current_index += self.bits_per_block
 
-
-        im = self.axes[1].imshow(entropy_matrix, cmap='viridis', vmax=self.max_entropy, aspect=1)
-        self.axes[1].set(adjustable='box-forced', aspect='equal')
-        cbar = self.axes[1].figure.colorbar(im, ax=self.axes[1])
-        cbar.ax.set_ylabel('entropy', rotation=-90, va='bottom')
-
         self._debug_message('extracted', ' '.join(bin_message))
         self._debug_message('num bits extracted', len(bin_message))
         self._debug_message('num blocks looked at', valid_blocks)
-        self._debug_message('min/max/avg entropy', numpy.min(entropy_matrix),
-                numpy.max(entropy_matrix), numpy.average(entropy_matrix))
-        pyplot.show()
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
 
