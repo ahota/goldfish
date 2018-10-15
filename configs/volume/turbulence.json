@@ -1,0 +1,12 @@
+{
+    "filename" : "/mnt/seenas1/data/tacc-turbulence/tacc-turbulence-256-volume.raw",
+    "dimensions" : [256, 256, 256],
+    "colorMap" : "spectralReverse",
+    "opacityMap" : "ramp",
+    "opacityAttenuation" : 1.0,
+    "cameraPosition" : [256, 362, 256],
+    "imageSize" : [512, 512],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/volume/turbulence.png",
+    "backgroundColor" : [232, 205, 192],
+    "samplesPerPixel" : 8
+}

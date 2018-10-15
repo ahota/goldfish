@@ -1,0 +1,15 @@
+{
+    "filename" : "/mnt/seenas1/data/superstorm/run1/wrfprs_1993-03-13_22:00:00.nc",
+    "dataVariable" : "R_H_GDS3_ISBL",
+    "dimensions" : [254, 254, 37],
+    "imageSize" : [512, 512],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/surface/superstorm.png",
+    "colorMap" : "spectral reverse",
+    "backgroundColor" : [200, 200, 200],
+    "opacityAttenuation" : 0.1,
+    "isosurfaceValues" : [0.1, 25, 50, 75, 100],
+    "specular" : 0.5,
+    "renderType" : "isosurface",
+    "cameraPosition" : [-198.449, -221.429, 147.687],
+    "cameraUpVector" : [0.309, 0.320, 0.895]
+}

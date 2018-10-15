@@ -1,0 +1,10 @@
+{
+    "filename" : "/mnt/seenas1/data/tornado/windvel/streamlines/x_150-250_y_100-200.osx",
+    "cameraPosition" : [420, 350, 178],
+    "cameraUpVector" : [0, 0, 1],
+    "imageSize" : [512, 512],
+    "backgroundColor" : [32, 32, 40, 255],
+    "dimensions" : [490, 490, 280],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/streamlines/x_150-250_y_100-200.png",
+    "samplesPerPixel": 32
+}

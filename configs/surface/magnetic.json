@@ -1,0 +1,13 @@
+{
+    "filename" : "/mnt/seenas1/data/magnetic/magnetic-512-volume.raw",
+    "dimensions" : [512, 512, 512],
+    "colorMap" : "cool to warm",
+    "opacityMap" : "ramp",
+    "opacityAttenuation" : 0.2,
+    "cameraPosition" : [128, -512, 256],
+    "imageSize" : [512, 512],
+    "isosurfaceValues" : [0.2],
+    "backgroundColor" : [23, 32, 43],
+    "specular" : 0.4,
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/surface/magnetic.png"
+}
