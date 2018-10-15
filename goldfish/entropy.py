@@ -146,6 +146,8 @@ class EntropyWatermarker(Watermarker):
 
             # un-zigzag the block
             block = block[self.zigzagflatinverse].reshape(8, 8)
+            # multiply by quantization matrix
+            block *= quantize_matrix
 
             # check the new entropy
             new_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
@@ -158,8 +160,6 @@ class EntropyWatermarker(Watermarker):
                 current_index += self.bits_per_block
                 n_blocks_embedded += 1
 
-            # multiply by quantization matrix
-            block *= quantize_matrix
             # inverse dct
             block = idct(idct(block, norm='ortho').T, norm='ortho').T
             # reassign back to tile
@@ -238,10 +238,10 @@ class EntropyWatermarker(Watermarker):
             # 2d dct
             block = dct(dct(blocks[bi, bj].T, norm='ortho').T,
                     norm='ortho')
-            block /= quantize_matrix
             entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
             if entropy < self.entropy_threshold:
                 continue
+            block /= quantize_matrix
             block = block.flatten()[self.zigzagflat] # get in zig zag order
             for bit_i in range(1, 1+self.bits_per_block):
                 if current_index + bit_i - 1 >= message_length:
