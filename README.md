@@ -1,6 +1,5 @@
 # Goldfish
 
-Python package for image-based steganography using various methods
-for use with the RaaS project
-
-Currently only has an LSB-based embedder and extractor
+Python package for embedding and extracting data to create self-describing
+visualizations. Implementation for "Embedding Meta-Information into
+Visualizations"
