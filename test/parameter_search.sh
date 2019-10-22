@@ -5,13 +5,14 @@ nrounds=10
 padlen=${#nrounds}
 bitsmin=1
 bitsmax=63
-threshmin=250
-threshmax=10000
+threshmin=10000
+threshmax=250000
 threshpad=${#threshmax}
-threshstep=250
-quality="bmp"
+threshstep=10000
+outputtype="jpeg"
+quality="95"
 
-resultsdir=et_results
+resultsdir=et_results/tornado
 
 runtest() {
     datasize=$1
@@ -20,8 +21,8 @@ runtest() {
         for (( bits = bitsmin; bits < bitsmax+1; bits++ )); do
             printf $'out: out.%u.%u\n' $bits $thresh
             printf $'out.%u.%u:\n' $bits $thresh
-            printf $'\tpython EntropyTest.py ../images/resubmission/molecule/girus.0000.0.4.png -b %s -e %s -n %s -d %d -t %s --quiet --stream; echo $$? > $@\n' \
-                $bits $thresh $nrounds $datasize $quality
+            printf $'\tpython EntropyTest.py ../images/resubmission/streamlines/xy_150-250.0000.0.4.png -b %s -e %s -n %s -d %d -t %s -q %s --quiet; echo $$? > $@\n' \
+                $bits $thresh $nrounds $datasize $outputtype $quality
         done
     done
 }
@@ -29,7 +30,7 @@ runtest() {
 for datasize in 16 32 128 1024; do
     make -j 48 -f <( runtest $datasize ) out
 
-    qdir="$resultsdir/$quality"
+    qdir="$resultsdir/$outputtype/$quality"
     fname="$qdir/d$datasize.txt"
     mkdir -p $qdir
 

@@ -27,6 +27,8 @@ parser.add_argument('-b', '--bits-per-block', type=int, default=16,
         help='Bits per block to embed')
 parser.add_argument('-c', '--channel', default='luma',
         help='Channel to embed in (luma is best)')
+parser.add_argument('-m', '--message', type=str,
+        help='Specify a message to embed')
 parser.add_argument('--debug', action='store_true',
         help='Enable debug messages')
 parser.add_argument('--super-debug', action='store_true',
@@ -58,12 +60,18 @@ if args.super_debug:
 for i in range(n_rounds):
     if not args.quiet:
         print '{num:{w}}/{t}'.format(num=i+1, w=print_len, t=n_rounds)
-    infile = sys.argv[1]
+    infile = args.image
     outfile = '.'.join(infile.split('.')[:-1])+'-altered.' + args.type
-    if args.stream:
-        outfile = StringIO()
+    #outfile = StringIO()
 
-    message = ''.join([random.choice(hex_digits) for _ in range(args.data_size)])
+    if args.message == None:
+        message = ''.join([random.choice(hex_digits) for _ in range(args.data_size)])
+    else:
+        message = args.message
+        if args.data_size != len(message):
+            print 'Specified message and data size are mismatched'
+            sys.exit(1)
+
     if args.debug and not args.quiet:
         print 'Length of message (bytes) =', len(message)
         print 'Length of message (bits) =', len(message)*8

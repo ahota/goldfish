@@ -1,0 +1,11 @@
+{
+    "filename" : "/mnt/seenas2/data/bfield/NASA-B-field-sun.osx",
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/streamlines/bfield.png",
+    "imageSize" : [1024, 1024],
+    "backgroundColor" : [19, 7, 18],
+    "dimensions" : [1, 1, 1],
+    "cameraPosition" : [-0.364, -0.880, 0.304],
+    "cameraUpVector" : [0.931, -0.349, 0.106],
+    "streamlinesRadius" : 0.001,
+    "samplesPerPixel" : 32
+}

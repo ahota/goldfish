@@ -256,12 +256,12 @@ class EntropyWatermarker(Watermarker):
             if current_index >= message_length:
                 break
             # 2d dct
-            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
-            entropy = self._calculate_entropy(block)
-            block /= quantize_matrix
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T,
+                    norm='ortho')
+            entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
             if entropy < self.entropy_threshold:
                 continue
-            valid_blocks += 1
+            block /= quantize_matrix
             block = block.flatten()[self.zigzagflat] # get in zig zag order
             for bit_i in range(1, 1+self.bits_per_block):
                 if current_index + bit_i - 1 >= message_length:

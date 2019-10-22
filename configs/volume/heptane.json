@@ -1,0 +1,12 @@
+{
+    "filename" : "/mnt/seenas1/data/csafe-heptane/csafe-heptane-302-volume-float.raw",
+    "dimensions" : [302, 302, 302],
+    "colorMap" : "viridis",
+    "opacityMap" : "ramp",
+    "opacityAttenuation" : 0.2,
+    "cameraPosition" : [75, -200, 200],
+    "imageSize" : [512, 512],
+    "backgroundColor" : [25, 54, 61],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/volume/heptane.png",
+    "samplesPerPixel" : 8
+}

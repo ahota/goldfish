@@ -1,0 +1,14 @@
+{
+    "filename" : "/mnt/seenas1/data/tornado/windvel/interp8502.nc",
+    "dimensions" : [280, 490, 490],
+    "dataVariable" : "wind_velocity_magnitude",
+    "colorMap" : "magma",
+    "opacityMap" : "exponential",
+    "opacityAttenuation" : 0.5,
+    "cameraPosition" : [-280, 200, 175],
+    "cameraUpVector" : [0, 0, 1],
+    "imageSize" : [512, 512],
+    "backgroundColor" : [136, 130, 145, 255],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/volume/tornado.png",
+    "samplesPerPixel" : 8
+}

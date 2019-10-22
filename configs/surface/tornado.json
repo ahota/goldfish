@@ -1,0 +1,16 @@
+{
+    "filename" : "/mnt/seenas1/data/tornado/windvel/interp8502.nc",
+    "dimensions" : [280, 490, 490],
+    "dataVariable" : "wind_velocity_magnitude",
+    "colorMap" : "magma",
+    "opacityMap" : "exponential",
+    "opacityAttenuation" : 0.5,
+    "isosurfaceValues" : [0.12, 27.59, 55.06, 82.53, 110.0],
+    "cameraPosition" : [-280, 200, 175],
+    "cameraUpVector" : [0, 0, 1],
+    "imageSize" : [2048, 2048],
+    "specular" : 0.5,
+    "renderType" : "isosurface",
+    "backgroundColor" : [136, 130, 145],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/surface/tornado2k.png"
+}

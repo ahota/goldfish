@@ -1,0 +1,8 @@
+{
+    "filename" : "/mnt/seenas2/data/molecules/caffeine.xyz",
+    "imageSize" : [512, 512],
+    "outputImageFilename" : "/home/ahota/projects/goldfish/images/resubmission/molecule/caffeine.png",
+    "cameraPosition" : [8, 0, 10],
+    "backgroundColor" : [53, 70, 96],
+    "samplesPerPixel" : 16
+}
