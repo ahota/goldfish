@@ -3,10 +3,10 @@ sys.path.append('../')
 from goldfish.entropy import EntropyWatermarker
 from goldfish.message import create_dummy_message
 import uuid
-import os, binascii, random
+import os, binascii, random, time
 
 from PIL import Image, ImageMath
-from skimage import data
+#from skimage import data
 
 from argparse import ArgumentParser
 from StringIO import StringIO
@@ -39,12 +39,19 @@ parser.add_argument('-d', '--data-size', type=int, default=32,
         help='How many bytes of watermark data to embed/extract')
 parser.add_argument('--direct', action='store_true',
         help='Directly decode the watermarked image to test insertions/deletions')
+parser.add_argument('--stream', action='store_true',
+        help='Use this for running in make to avoid saving to disk')
+parser.add_argument('--time', action='store_true',
+        help='Time the embedding process')
 args = parser.parse_args()
 
 n_rounds = args.n_rounds
 successes = 0
 # yes this is stupid
 hex_digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
+times = []
+ext_times = []
+start = 0
 
 print_len = len(str(n_rounds))
 if args.super_debug:
@@ -81,7 +88,12 @@ for i in range(n_rounds):
 
     #print 'Embedding message \"'+message+'\" into image'
 
+    if args.time:
+        start = time.time()
     im_out = wm.embed(infile, message)
+    end = time.time()
+    if args.time:
+        times.append(end - start)
 
     if args.super_debug:
         im = Image.open(infile)
@@ -89,19 +101,27 @@ for i in range(n_rounds):
         im_out.show()
         sys.exit()
 
-    #print 'Saving to', outfile
 
     if not args.direct:
-        im_out.save(outfile, format=args.type, quality=args.quality)
+        if args.debug:
+            print 'Saving to', outfile
+        im_out.save(outfile, format=args.type, quality=95)#args.quality)
         im_out = Image.open(outfile)
+    if args.time:
+        start = time.time()
     retrieved = wm.extract(im_out, message_length=args.data_size*8)
+    end = time.time()
+    if args.time:
+        ext_times.append(end - start)
+
+    if args.debug:
+        print message
+        print retrieved
 
     if message != retrieved:
         if n_rounds == 1 and not args.quiet:
             print
             print 'Failure!'
-            print message
-            print retrieved
             with open('orig', 'w') as f:
                 f.write(message)
             with open('decoded', 'w') as f:
@@ -113,6 +133,9 @@ for i in range(n_rounds):
 
 if not args.quiet:
     print successes, 'successful extractions out of', n_rounds
+if args.time:
+    print sum(times)/len(times), 's average embed time'
+    print sum(ext_times)/len(ext_times), 's average extract time'
 
 sys.exit(successes)
 

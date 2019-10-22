@@ -4,7 +4,7 @@ padlen=${#nrounds}
 specmin=0
 specmax=10
 threshmin=1000
-threshmax=5000
+threshmax=10000
 threshstep=100
 datamin=16
 datamax=128
@@ -16,7 +16,7 @@ runtest() {
         for (( thresh = threshmin; thresh <= threshmax; thresh += threshstep )); do
             printf $'out: out.%u.%u\n' $spec $thresh
             printf $'out.%u.%u:\n' $spec $thresh
-            printf $'\tpython EntropyTest.py ../images/surface/supernova0000.0.%s.png -e %s -n %s --quiet; echo $$? > $@\n' \
+            printf $'\tpython EntropyTest.py ../images/resubmission/molecule/girus.0000.0.%s.png --stream -e %s -n %s --quiet; echo $$? > $@\n' \
                 $spec $thresh $nrounds
         done
     done

@@ -2,6 +2,8 @@ from watermarker import *
 from scipy.fftpack import dct, idct
 from unireedsolomon import rs
 
+from matplotlib import pyplot
+
 class EntropyWatermarker(Watermarker):
     '''
     Embedder/extractor using the entropy thresholding scheme from
@@ -43,52 +45,129 @@ class EntropyWatermarker(Watermarker):
         self.chan = chan
         self.show_embed = show_embed
 
-    @seeded
-    def embed(self, image, message):
+    def _divide_blocks(self, band, width, height, bw, bh):
+        return numpy.array(
+                [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
+                for (i, j) in numpy.ndindex(width/bw, width/bh)]
+                ).reshape(width/bw, height/bh, bw, bh)
+
+    def _calculate_entropy(self, block):
+        return numpy.sum(block * block) - block[0, 0]*block[0, 0]
+
+    def _embed_k_bits(self, block, bin_message, current_index):
+        # embed bits_per_block bits of the message into this block
+        for bit_i in range(1, 1+self.bits_per_block):
+            if current_index + bit_i - 1 >= len(bin_message):
+                break
+            if bin_message[current_index+bit_i-1] == '1':
+                # round coefficient to the nearest odd number
+                block[bit_i] = 2 * numpy.round((block[bit_i]+1)/2) - 1
+            else:
+                # round coefficient to the nearest even number
+                block[bit_i] = 2 * numpy.round(block[bit_i]/2)
+
+    def _prep_image(self, image):
         if type(image) is str or type(image) is unicode:
             image = Image.open(image)
-
         width, height = image.size
         image = image.convert('YCbCr')
         if len(image.getbands()) > 3:
             bands = self._get_bands(image)[:3]
         else:
             bands = self._get_bands(image)
+        return (bands, width, height)
 
+    def entropy_heatmap(self, image, apply_qm=False):
+        bands, width, height = self._prep_image(image)
+
+        bw = 8
+        bh = 8
+
+        band = bands[0]
+        blocks = self._divide_blocks(band, width, height, bw, bh)
+        entropy_matrix = numpy.zeros((width/bw, height/bh))
+
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
+
+        for (bi, bj) in numpy.ndindex(width/bw, height/bh):
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+            entropy_matrix[bi, bj] = self._calculate_entropy(block)
+
+            if apply_qm:
+                block /= quantize_matrix
+                block = block.flatten()[self.zigzagflat] # get in zig zag order
+                block = block[self.zigzagflatinverse].reshape(8, 8)
+                block *= quantize_matrix
+
+            block = idct(idct(block, norm='ortho').T, norm='ortho').T
+            blocks[bi, bj] = block
+
+        band = numpy.hstack([numpy.vstack(blocks[:,i]) for i in range(width/bw)])
+        bands[0] = band
+        merged = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
+        return (merged.convert('RGB'), entropy_matrix)
+
+    @seeded
+    def check_embed_entropy(self, image, message):
+        bands, width, height = self._prep_image(image)
         embed_band = ['luma', 'cb', 'cr'].index(self.chan)
 
-        '''
-        # encode with Reed-Solomon
-        # assume an 8-bit symbol size s (ie ASCII character)
-        # the message contains k symbols
-        # the encoded message contains n symbols where n >= k
-        # but n <= 2^s-1 symbols long
-        # here, len(message) is a value in units of number of symbols
-        coder = rs.RSCoder(96, len(message))
-        field_vals = coder.encode(message, return_string=False)
-        #self._debug_message([int(fv) for fv in field_vals])
-
-        # the binary version of the encoded message is at most 2040 bits
-        # because 2^8 - 1 = 255 symbols * 8 = 2040 bits
-        # it COULD be shorter, but since the message structure is now
-        # fixed to 1024 bits (128 bytes), we can just stick to the max
-        bin_message = ''.join([bin(fv)[2:].zfill(8) for fv in field_vals])
-        '''
         bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
-        '''
-        # the binary message may not be a multiple of the number of bits
-        # we're embedding per block (e.g. 2040 / 16 = 127.5)
-        # so pad with zeros to the next multiple
-        if len(bin_message) % self.bits_per_block != 0:
-            self._debug_message('Encoded message needs padding', len(bin_message))
-            bin_message += '0'*(self.bits_per_block - len(bin_message)%self.bits_per_block)
+        quantize_matrix = self._setup_quantize_matrix(self.quality)
+        
+        bw = 8 # block width
+        bh = 8 # block height
 
-        #self._debug_message('First 32 bits of bin message', bin_message[:32])
-        self._debug_message('Encoded message length =', len(bin_message), 'bits')
-        self._debug_message('Is multiple of bits-per-byte?',
-                (len(bin_message)%self.bits_per_block==0))
-        '''
-        self._debug_message(' '.join(bin_message))
+        band = bands[embed_band]
+        current_index = 0
+
+        blocks = self._divide_blocks(band, width, height, bw, bh)
+        entropy_status = numpy.zeros((width/bw, height/bh))
+
+        for(bi, bj) in numpy.ndindex(width/bw, height/bh):
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+            orig_entropy = self._calculate_entropy(block)
+
+            if current_index >= len(bin_message):
+                entropy_status[bi, bj] = 0 # end of message reached
+                continue
+            if orig_entropy < self.entropy_threshold:
+                entropy_status[bi, bj] = 1 # entropy too low
+                continue
+
+            block /= quantize_matrix
+            block = block.flatten()[self.zigzagflat]
+            self._embed_k_bits(block, bin_message, current_index)
+            block = block[self.zigzagflatinverse].reshape(bw, bh)
+            block *= quantize_matrix
+
+            new_entropy = self._calculate_entropy(block)
+
+            if new_entropy < self.entropy_threshold:
+                entropy_status[bi, bj] = 2 # entropy fell below after embedding
+                continue
+            current_index += self.bits_per_block
+            entropy_status[bi, bj] = 3 # entropy remained above after embedding
+
+        return entropy_status
+
+    def _find_candidate_blocks(self, blocks, width, height, bw, bh):
+        candidates = []
+        for (bi, bj) in numpy.ndindex(width/bw, height/bh):
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
+            entropy = self._calculate_entropy(block)
+            if entropy > self.entropy_threshold:
+                candidates.append((bi, bj))
+            block = idct(idct(block, norm='ortho').T, norm='ortho').T
+        return candidates
+
+    @seeded
+    def embed(self, image, message):
+        bands, width, height = self._prep_image(image)
+        embed_band = ['luma', 'cb', 'cr'].index(self.chan)
+
+        bin_message = ''.join([format(ord(c), 'b').zfill(8) for c in message])
+        self._debug_message('to embed', ' '.join(bin_message))
         quantize_matrix = self._setup_quantize_matrix(self.quality)
         
         bw = 8 # block width
@@ -99,50 +178,27 @@ class EntropyWatermarker(Watermarker):
         entropies = []
         current_index = 0
         n_blocks_embedded = 0
+        valid_blocks = 0
+
         # divide the tile into 8x8 blocks
-        blocks = numpy.array(
-            [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
-            for (i, j) in numpy.ndindex(width/bw, width/bh)]
-        ).reshape(width/bw, height/bh, bw, bh)
+        blocks = self._divide_blocks(band, width, height, bw, bh)
+        candidate_block_indices = self._find_candidate_blocks(blocks, width, height, bw, bh)
 
         # for each block
-        for (bi, bj) in numpy.ndindex(width/bw, height/bh):
-
+        for (bi, bj) in candidate_block_indices:
             if current_index >= len(bin_message):
-                if self.show_embed:
-                    blocks[bi, bj][:] = 255 # whiteout the stopping block
+                # we've already embedded the whole message
                 break
 
-            # 2d dct
-            block = dct(dct(blocks[bi, bj].T, norm='ortho').T,
-                    norm='ortho')
-
-            # check block entropy
-            orig_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
-            entropies.append(orig_entropy)
-            if orig_entropy < self.entropy_threshold:
-                if self.show_embed:
-                    blocks[bi, bj] = self._draw_x(blocks[bi, bj])
-                continue # skip this block
+            # perform 2d dct
+            block = dct(dct(blocks[bi, bj].T, norm='ortho').T, norm='ortho')
 
             # divide by the jpeg quantization matrix
             # image should resist up to <quality> jpeg compression
             block /= quantize_matrix
             block = block.flatten()[self.zigzagflat] # get in zig zag order
 
-            # embed bits_per_block bits of the message into this block
-            for bit_i in range(1, 1+self.bits_per_block):
-                if current_index + bit_i - 1 >= len(bin_message):
-                    self._debug_message('Early termination:',
-                        'embedded length of message at block',
-                        bi, bj, 'and bit', bit_i)
-                    break
-                if bin_message[current_index+bit_i-1] == '1':
-                    # round coefficient to the nearest odd number
-                    block[bit_i] = 2 * numpy.round((block[bit_i]+1)/2) - 1
-                else:
-                    # round coefficient to the nearest even number
-                    block[bit_i] = 2 * numpy.round(block[bit_i]/2)
+            self._embed_k_bits(block, bin_message, current_index)
 
             # un-zigzag the block
             block = block[self.zigzagflatinverse].reshape(8, 8)
@@ -150,12 +206,10 @@ class EntropyWatermarker(Watermarker):
             block *= quantize_matrix
 
             # check the new entropy
-            new_entropy = numpy.sum(block*block) - block[0,0]*block[0,0]
+            new_entropy = self._calculate_entropy(block)
             if new_entropy < self.entropy_threshold:
-                if self.show_embed:
-                    blocks[bi, bj] = self._draw_line(blocks[bi, bj])
                 # leave this block as is and continue
-                continue
+                pass
             else:
                 current_index += self.bits_per_block
                 n_blocks_embedded += 1
@@ -173,35 +227,18 @@ class EntropyWatermarker(Watermarker):
         band = numpy.hstack([numpy.vstack(blocks[:,i])
             for i in range(width/bw)])
 
-        self._debug_message(min(entropies), max(entropies),
-                sum(entropies)/len(entropies))
-        self._debug_message(sorted(entropies, reverse=True)[:5])
-        self._debug_message('blocks used:', n_blocks_embedded)
-
         # reassemble the tiles into a channel
         bands[embed_band] = band
-
         watermarked = Image.merge('YCbCr', [Image.fromarray(b) for b in bands])
         return watermarked.convert('RGB')
 
     # message length in units of bits, not bytes!
     @seeded
     def extract(self, image, message_length=256):
-        if type(image) is str or type(image) is unicode:
-            image = Image.open(image)
-
-        width, height = image.size
-        image = image.convert('YCbCr')
-        if len(image.getbands()) > 3:
-            bands = self._get_bands(image)[:3]
-        else:
-            bands = self._get_bands(image)
-
+        bands, width, height = self._prep_image(image)
         ex_band = ['luma', 'cb', 'cr'].index(self.chan)
 
         bin_message = ''
-        # get a decoder ready
-        #decoder = rs.RSCoder(96, message_length/8)
         quantize_matrix = self._setup_quantize_matrix(self.quality)
         
         bw = 8 # block width
@@ -211,27 +248,10 @@ class EntropyWatermarker(Watermarker):
 
         # embed the message in each tile
         current_index = 0
-        '''
-        # the actual length of the embedded message is
-        # the expected length plus any padding we had to do
-        if (96*8) % self.bits_per_block != 0:
-            actual_length = 96*8 + (self.bits_per_block-((96*8)%self.bits_per_block))
-            self._debug_message('Expected length of message (bits):', 96*8)
-            self._debug_message('Actual length to search for (bits):', actual_length)
-        else:
-            actual_length = message_length
-        if message_length % self.bits_per_block != 0:
-            self._debug_message('Message is not multiple of bits-per-block',
-                    message_length, self.bits_per_block)
-            message_length += (self.bits_per_block - message_length % self.bits_per_block)
-            self._debug_message('Message length now', message_length)
-        '''
         # divide the tile into 8x8 ps blocks
-        blocks = numpy.array(
-            [band[i*bw:(i+1)*bw, j*bh:(j+1)*bh]
-            for (i, j) in numpy.ndindex(width/bw, height/bh)]
-        ).reshape(width/bw, height/bh, bw, bh)
+        blocks = self._divide_blocks(band, width, height, bw, bh)
         # for each block
+        valid_blocks = 0
         for (bi, bj) in numpy.ndindex(width/bw, height/bh):
             if current_index >= message_length:
                 break
@@ -255,18 +275,9 @@ class EntropyWatermarker(Watermarker):
                     bin_message += '1'
             current_index += self.bits_per_block
 
-        self._debug_message(' '.join(bin_message))
-        #bin_message = bin_message[:message_length]
-        '''
-        # form the binary message
-        encoded = ''.join([chr(int(bin_message[i:i+8], 2)) 
-                 for i in range(0, len(bin_message), 8)])
-        message = ''
-        try:
-            message = decoder.decode(encoded)[0]
-        except rs.RSCodecError:
-            print 'RSCoder failed to read encoded message!'
-        '''
+        self._debug_message('extracted', ' '.join(bin_message))
+        self._debug_message('num bits extracted', len(bin_message))
+        self._debug_message('num blocks looked at', valid_blocks)
         return ''.join([chr(int(bin_message[i:i+8], 2)) 
                  for i in range(0, len(bin_message), 8)])
 
